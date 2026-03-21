@@ -39,6 +39,14 @@ type Incident struct {
 	Cause      string
 }
 
+// SecurityScan represents a security scan result row.
+type SecurityScan struct {
+	ID            int64
+	Target        string
+	Timestamp     int64
+	OpenPortsJSON string
+}
+
 // SecurityBaseline represents a security baseline row.
 type SecurityBaseline struct {
 	Target            string

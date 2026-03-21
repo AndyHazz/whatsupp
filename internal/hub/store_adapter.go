@@ -227,11 +227,36 @@ func (a *StoreAdapter) GetIncidents(from, to time.Time) ([]api.Incident, error) 
 // --- SecurityStore ---
 
 func (a *StoreAdapter) GetSecurityScans() ([]api.SecurityScan, error) {
-	return nil, nil
+	scans, err := a.s.GetAllSecurityScans()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]api.SecurityScan, len(scans))
+	for i, sc := range scans {
+		out[i] = api.SecurityScan{
+			ID:            sc.ID,
+			Target:        sc.Target,
+			Timestamp:     sc.Timestamp,
+			OpenPortsJSON: sc.OpenPortsJSON,
+		}
+	}
+	return out, nil
 }
 
 func (a *StoreAdapter) GetSecurityBaselines() ([]api.SecurityBaseline, error) {
-	return nil, nil
+	baselines, err := a.s.GetAllSecurityBaselines()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]api.SecurityBaseline, len(baselines))
+	for i, bl := range baselines {
+		out[i] = api.SecurityBaseline{
+			Target:            bl.Target,
+			ExpectedPortsJSON: bl.ExpectedPortsJSON,
+			UpdatedAt:         bl.UpdatedAt,
+		}
+	}
+	return out, nil
 }
 
 func (a *StoreAdapter) UpdateSecurityBaseline(target string, portsJSON string, updatedAt time.Time) error {

@@ -98,6 +98,48 @@ func (s *Store) UpsertSecurityBaseline(target, expectedPortsJSON string, updated
 	return err
 }
 
+// GetAllSecurityScans returns all security scans, most recent first.
+func (s *Store) GetAllSecurityScans() ([]SecurityScan, error) {
+	rows, err := s.db.Query(
+		`SELECT id, target, timestamp, open_ports_json FROM security_scans ORDER BY timestamp DESC LIMIT 100`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var scans []SecurityScan
+	for rows.Next() {
+		var sc SecurityScan
+		if err := rows.Scan(&sc.ID, &sc.Target, &sc.Timestamp, &sc.OpenPortsJSON); err != nil {
+			return nil, err
+		}
+		scans = append(scans, sc)
+	}
+	return scans, rows.Err()
+}
+
+// GetAllSecurityBaselines returns all security baselines.
+func (s *Store) GetAllSecurityBaselines() ([]SecurityBaseline, error) {
+	rows, err := s.db.Query(
+		`SELECT target, expected_ports_json, updated_at FROM security_baselines ORDER BY target`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var baselines []SecurityBaseline
+	for rows.Next() {
+		var bl SecurityBaseline
+		if err := rows.Scan(&bl.Target, &bl.ExpectedPortsJSON, &bl.UpdatedAt); err != nil {
+			return nil, err
+		}
+		baselines = append(baselines, bl)
+	}
+	return baselines, rows.Err()
+}
+
 // GetSecurityBaseline returns the baseline for a target, or nil.
 func (s *Store) GetSecurityBaseline(target string) (*SecurityBaseline, error) {
 	row := s.db.QueryRow(
