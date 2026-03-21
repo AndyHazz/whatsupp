@@ -35,12 +35,38 @@ async function request(method, path, body = null) {
   // Handle 204 No Content
   if (res.status === 204) return null;
 
-  // Handle backup endpoint (returns file)
   const ct = res.headers.get('content-type') || '';
+
+  // Handle backup endpoint (returns file)
   if (ct.includes('application/octet-stream')) {
     return res.blob();
   }
 
+  // Handle YAML responses (config endpoint)
+  if (ct.includes('yaml') || ct.includes('text/plain')) {
+    const text = await res.text();
+    return { config: text };
+  }
+
+  return res.json();
+}
+
+async function requestRaw(method, path, body, contentType) {
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    credentials: 'include',
+    headers: { 'Content-Type': contentType },
+    body,
+  });
+  if (res.status === 401) {
+    window.location.reload();
+    throw new ApiError(401, 'Session expired');
+  }
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, data.error || `HTTP ${res.status}`);
+  }
+  if (res.status === 204) return null;
   return res.json();
 }
 
@@ -81,7 +107,7 @@ export const api = {
 
   // Config
   getConfig:    ()       => request('GET', '/config'),
-  updateConfig: (yaml)   => request('PUT', '/config', { config: yaml }),
+  updateConfig: (yaml)   => requestRaw('PUT', '/config', yaml, 'application/x-yaml'),
 
   // Admin
   getBackup: () => request('GET', '/admin/backup'),
