@@ -58,9 +58,9 @@
   {:else}
     <div class="grid">
       {#each hosts as host}
-        <a href="/hosts/{encodeURIComponent(host.name)}" use:link class="card">
+        <a href="/hosts/{encodeURIComponent(host.host)}" use:link class="card">
           <div class="card-header">
-            <span class="host-name">{host.name}</span>
+            <span class="host-name">{host.host}</span>
             <span class="last-seen">{formatLastSeen(host.last_seen_at)}</span>
           </div>
           <div class="gauges">

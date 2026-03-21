@@ -31,13 +31,14 @@ type AuthConfig struct {
 }
 
 type Monitor struct {
-    Name             string        `yaml:"name"`
-    Type             string        `yaml:"type"`
-    URL              string        `yaml:"url,omitempty"`
-    Host             string        `yaml:"host,omitempty"`
-    Port             int           `yaml:"port,omitempty"`
-    Interval         time.Duration `yaml:"interval"`
-    FailureThreshold int           `yaml:"failure_threshold,omitempty"`
+    Name               string        `yaml:"name"`
+    Type               string        `yaml:"type"`
+    URL                string        `yaml:"url,omitempty"`
+    Host               string        `yaml:"host,omitempty"`
+    Port               int           `yaml:"port,omitempty"`
+    Interval           time.Duration `yaml:"interval"`
+    FailureThreshold   int           `yaml:"failure_threshold,omitempty"`
+    InsecureSkipVerify bool          `yaml:"insecure_skip_verify,omitempty"`
 }
 
 type AgentConfig struct {

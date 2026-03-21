@@ -42,7 +42,7 @@
     }
   }
 
-  $: if (name && rangeSeconds) loadData();
+  onMount(() => loadData());
 
   // Live updates — append new check results
   const unsub = onMessage('check_result', (data) => {
@@ -92,7 +92,7 @@
     <div class="chart-section">
       <div class="chart-controls">
         <h2>Response Time</h2>
-        <TimeRangeSelector selected={rangeSeconds} on:change={(e) => { rangeSeconds = e.detail; }} />
+        <TimeRangeSelector selected={rangeSeconds} on:change={(e) => { rangeSeconds = e.detail; loadData(); }} />
       </div>
       <Chart data={chartData} label="Latency" unit="ms" height={350} />
     </div>

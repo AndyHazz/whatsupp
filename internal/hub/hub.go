@@ -71,7 +71,7 @@ func New(cfg *config.Config, configPath string) (*Hub, error) {
 		var checker Checker
 		switch m.Type {
 		case "http":
-			checker = &checks.HTTPChecker{URL: m.URL, Timeout: 10}
+			checker = &checks.HTTPChecker{URL: m.URL, Timeout: 10, InsecureSkipVerify: m.InsecureSkipVerify}
 		case "ping":
 			checker = &checks.PingChecker{Host: m.Host, Count: 3, Timeout: 10}
 		case "port":

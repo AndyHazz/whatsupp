@@ -71,7 +71,7 @@
     }
   }
 
-  $: if (name && rangeSeconds) loadData();
+  onMount(() => loadData());
 
   const unsub = onMessage('agent_metric', (data) => {
     if (data.host !== name || !host) return;
@@ -98,7 +98,7 @@
   {:else if host}
     <div class="header">
       <h1>{host.name}</h1>
-      <TimeRangeSelector selected={rangeSeconds} on:change={(e) => { rangeSeconds = e.detail; }} />
+      <TimeRangeSelector selected={rangeSeconds} on:change={(e) => { rangeSeconds = e.detail; loadData(); }} />
     </div>
 
     <div class="gauges-row">
