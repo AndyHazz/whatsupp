@@ -1,5 +1,5 @@
 <script>
-  import { Router, Route } from 'svelte-routing';
+  import { path, matchRoute } from './lib/router.js';
   import Layout from './components/Layout.svelte';
   import Login from './pages/Login.svelte';
   import Overview from './pages/Overview.svelte';
@@ -13,29 +13,42 @@
   import { isAuthenticated } from './lib/auth.js';
   import { connect, disconnect } from './lib/ws.js';
 
-  $: if ($isAuthenticated) {
+  // Manage WS connection based on auth
+  let wasAuth = false;
+  $: if ($isAuthenticated && !wasAuth) {
     connect();
-  } else {
+    wasAuth = true;
+  } else if (!$isAuthenticated && wasAuth) {
     disconnect();
+    wasAuth = false;
   }
+
+  // Route matching
+  $: currentPath = $path;
+  $: monitorMatch = matchRoute('/monitors/:name', currentPath);
+  $: hostMatch = matchRoute('/hosts/:name', currentPath);
 </script>
 
-<Router>
-  {#if !$isAuthenticated}
-    <Login />
-  {:else}
-    <Layout>
-      <Route path="/" component={Overview} />
-      <Route path="/monitors/:name" let:params>
-        <MonitorDetail name={params.name} />
-      </Route>
-      <Route path="/hosts" component={Hosts} />
-      <Route path="/hosts/:name" let:params>
-        <HostDetail name={params.name} />
-      </Route>
-      <Route path="/security" component={Security} />
-      <Route path="/incidents" component={Incidents} />
-      <Route path="/settings" component={Settings} />
-    </Layout>
-  {/if}
-</Router>
+{#if !$isAuthenticated}
+  <Login />
+{:else}
+  <Layout>
+    {#if currentPath === '/'}
+      <Overview />
+    {:else if monitorMatch}
+      <MonitorDetail name={monitorMatch.name} />
+    {:else if currentPath === '/hosts'}
+      <Hosts />
+    {:else if hostMatch}
+      <HostDetail name={hostMatch.name} />
+    {:else if currentPath === '/security'}
+      <Security />
+    {:else if currentPath === '/incidents'}
+      <Incidents />
+    {:else if currentPath === '/settings'}
+      <Settings />
+    {:else}
+      <Overview />
+    {/if}
+  </Layout>
+{/if}

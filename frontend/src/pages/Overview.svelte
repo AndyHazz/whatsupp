@@ -1,6 +1,6 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { link } from 'svelte-routing';
+  import { link } from '../lib/router.js';
   import { api } from '../lib/api.js';
   import { onMessage } from '../lib/ws.js';
   import StatusBadge from '../components/StatusBadge.svelte';

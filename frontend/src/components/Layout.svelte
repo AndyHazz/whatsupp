@@ -1,5 +1,5 @@
 <script>
-  import { link } from 'svelte-routing';
+  import { link } from '../lib/router.js';
   import { logout } from '../lib/auth.js';
   import { wsConnected } from '../lib/ws.js';
 
