@@ -1,4 +1,5 @@
 <script>
+  import { onMount } from 'svelte';
   export let value = 0;   // 0-100
   export let label = '';
   export let size = 80;
@@ -7,16 +8,22 @@
   $: color = pct >= 90 ? 'var(--red)' : pct >= 75 ? 'var(--orange)' : 'var(--green)';
   $: circumference = 2 * Math.PI * 34;
   $: offset = circumference * (1 - pct / 100);
+
+  let mounted = false;
+  onMount(() => { mounted = true; });
+
+  $: displayOffset = mounted ? offset : circumference;
 </script>
 
 <div class="gauge" style="width:{size}px">
   <svg viewBox="0 0 80 80" width={size} height={size}>
     <circle cx="40" cy="40" r="34" fill="none" stroke="var(--bg)" stroke-width="6" />
     <circle
+      class="progress"
       cx="40" cy="40" r="34" fill="none"
       stroke={color} stroke-width="6"
       stroke-dasharray={circumference}
-      stroke-dashoffset={offset}
+      stroke-dashoffset={displayOffset}
       stroke-linecap="round"
       transform="rotate(-90 40 40)"
     />
@@ -40,5 +47,8 @@
   .gauge-label {
     font-size: 0.75rem;
     color: var(--fg-muted);
+  }
+  .progress {
+    transition: stroke-dashoffset 0.6s ease-out;
   }
 </style>

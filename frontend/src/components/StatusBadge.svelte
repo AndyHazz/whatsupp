@@ -16,6 +16,6 @@
     letter-spacing: 0.5px;
   }
   .up      { background: rgba(80, 250, 123, 0.15); color: var(--green); }
-  .down    { background: rgba(255, 85, 85, 0.15); color: var(--red); }
+  .down    { background: rgba(255, 85, 85, 0.15); color: var(--red); animation: pulse-down 2s infinite; }
   .unknown { background: rgba(98, 114, 164, 0.15); color: var(--fg-muted); }
 </style>
