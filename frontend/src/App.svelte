@@ -3,6 +3,7 @@
   import Layout from './components/Layout.svelte';
   import Login from './pages/Login.svelte';
   import Overview from './pages/Overview.svelte';
+  import Monitors from './pages/Monitors.svelte';
   import MonitorDetail from './pages/MonitorDetail.svelte';
   import Hosts from './pages/Hosts.svelte';
   import HostDetail from './pages/HostDetail.svelte';
@@ -35,6 +36,8 @@
   <Layout>
     {#if currentPath === '/'}
       <Overview />
+    {:else if currentPath === '/monitors'}
+      <Monitors />
     {:else if monitorMatch}
       <MonitorDetail name={monitorMatch.name} />
     {:else if currentPath === '/hosts'}

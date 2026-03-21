@@ -5,6 +5,7 @@
 
   const navItems = [
     { path: '/',          label: 'Overview',   icon: '&#9673;' },
+    { path: '/monitors',  label: 'Monitors',   icon: '&#9672;' },
     { path: '/hosts',     label: 'Hosts',      icon: '&#9881;' },
     { path: '/security',  label: 'Security',   icon: '&#9888;' },
     { path: '/incidents', label: 'Incidents',   icon: '&#9889;' },
