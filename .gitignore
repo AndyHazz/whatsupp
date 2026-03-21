@@ -1,0 +1,7 @@
+whatsupp
+*.db
+*.db-wal
+*.db-shm
+.env
+dist/
+node_modules/
