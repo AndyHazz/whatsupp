@@ -60,6 +60,12 @@
 
   onDestroy(unsub);
 
+  // Convert incidents to chart bands
+  $: chartBands = incidents.map(inc => ({
+    from: inc.started_at,
+    to: inc.resolved_at || Math.floor(Date.now() / 1000),
+  }));
+
   function formatDuration(seconds) {
     if (!seconds || seconds < 0) return '-';
     if (seconds < 60) return `${seconds}s`;
@@ -99,7 +105,7 @@
         <h2>Response Time</h2>
         <TimeRangeSelector selected={rangeSeconds} on:change={(e) => { rangeSeconds = e.detail; loadData(); }} />
       </div>
-      <Chart data={chartData} label="Latency" unit="ms" height={350} />
+      <Chart data={chartData} label="Latency" unit="ms" height={350} bands={chartBands} />
     </div>
 
     {#if incidents.length > 0}
