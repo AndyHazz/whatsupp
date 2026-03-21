@@ -61,6 +61,8 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-card);
   }
 
   h1 {
@@ -103,7 +105,7 @@
     margin-top: 8px;
   }
   button:hover:not(:disabled) {
-    opacity: 0.9;
+    filter: brightness(1.1);
   }
   button:disabled {
     opacity: 0.5;

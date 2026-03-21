@@ -83,7 +83,10 @@
   <h1>Settings</h1>
 
   {#if loading}
-    <p class="muted">Loading configuration...</p>
+  <div class="section">
+    <div class="skel" style="width:60%;height:20px;margin-bottom:12px;"></div>
+    <div class="skel" style="width:100%;height:400px;border-radius:var(--radius);"></div>
+  </div>
   {:else}
     {#if error}
       <div class="msg error-msg">{error}</div>
@@ -138,6 +141,8 @@
     padding: 20px;
     border-radius: var(--radius);
     margin-bottom: var(--gap);
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-card);
   }
   .section h2 {
     font-size: 1.1rem;
@@ -181,7 +186,7 @@
     border-radius: var(--radius);
     font-weight: 600;
   }
-  .btn-primary:hover:not(:disabled) { opacity: 0.9; }
+  .btn-primary:hover:not(:disabled) { filter: brightness(1.1); }
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .btn-secondary {
@@ -193,6 +198,7 @@
   }
   .btn-secondary:hover:not(:disabled) {
     border-color: var(--purple);
+    background: rgba(189, 147, 249, 0.08);
   }
   .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
 
@@ -206,4 +212,11 @@
   .success-msg { background: rgba(80, 250, 123, 0.12); color: var(--green); }
 
   .muted { color: var(--fg-muted); }
+
+  .skel {
+    background: linear-gradient(90deg, #323543 25%, #3a3d4e 50%, #323543 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 4px;
+  }
 </style>
