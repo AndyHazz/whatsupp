@@ -16,7 +16,7 @@
 
   onMount(async () => {
     try {
-      monitors = await api.getMonitors();
+      monitors = (await api.getMonitors()).sort((a, b) => a.name.localeCompare(b.name));
       // Fetch last 1h of results for each monitor for sparklines
       const now = Math.floor(Date.now() / 1000);
       const oneHourAgo = now - 3600;
