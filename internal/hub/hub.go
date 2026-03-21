@@ -245,6 +245,7 @@ func (h *Hub) MonitorStatuses() map[string]api.MonitorStatus {
 			Status:    status,
 			LatencyMs: latencyMs,
 			LastCheck: lastCheck,
+			UptimePct: ms.UptimePct(),
 		}
 	}
 	return result
@@ -277,19 +278,72 @@ func (h *Hub) MonitorStatus(name string) (api.MonitorStatus, bool) {
 		Status:    status,
 		LatencyMs: latencyMs,
 		LastCheck: lastCheck,
+		UptimePct: ms.UptimePct(),
 	}, true
 }
 
 // ReloadConfig re-reads the YAML config and applies changes.
+// Restarts the scheduler with updated monitors.
 func (h *Hub) ReloadConfig() error {
 	cfg, err := config.Load(h.configPath)
 	if err != nil {
 		return err
 	}
+
+	// Stop the old scheduler
+	h.scheduler.Stop()
+
 	h.mu.Lock()
 	h.cfg = cfg
+
+	// Rebuild monitor states — keep existing state for monitors that still exist
+	newStates := make(map[string]*MonitorState)
+	newTypes := make(map[string]string)
+	for _, m := range cfg.Monitors {
+		threshold := m.FailureThreshold
+		if threshold == 0 {
+			threshold = cfg.Alerting.DefaultFailureThreshold
+		}
+		if existing, ok := h.monitorStates[m.Name]; ok {
+			// Preserve existing state (UP/DOWN, failure count)
+			existing.FailureThreshold = threshold
+			newStates[m.Name] = existing
+		} else {
+			newStates[m.Name] = NewMonitorState(m.Name, threshold)
+		}
+		newTypes[m.Name] = m.Type
+	}
+	h.monitorStates = newStates
+	h.monitorTypes = newTypes
+
+	// Clean up lastResults for removed monitors
+	for name := range h.lastResults {
+		if _, exists := newStates[name]; !exists {
+			delete(h.lastResults, name)
+		}
+	}
 	h.mu.Unlock()
-	log.Printf("hub: config reloaded")
+
+	// Create and start new scheduler
+	sched := NewScheduler(cfg.Monitors, h.resultCh)
+	for _, m := range cfg.Monitors {
+		var checker Checker
+		switch m.Type {
+		case "http":
+			checker = &checks.HTTPChecker{URL: m.URL, Timeout: 10, InsecureSkipVerify: m.InsecureSkipVerify}
+		case "ping":
+			checker = &checks.PingChecker{Host: m.Host, Count: 3, Timeout: 10}
+		case "port":
+			checker = &checks.PortChecker{Host: m.Host, Port: m.Port, Timeout: 10}
+		}
+		if checker != nil {
+			sched.RegisterChecker(m.Name, checker)
+		}
+	}
+	h.scheduler = sched
+	h.scheduler.Start()
+
+	log.Printf("hub: config reloaded, %d monitors active", len(cfg.Monitors))
 	return nil
 }
 

@@ -49,6 +49,16 @@ type MonitorState struct {
 	FailureThreshold    int
 	ConsecutiveFailures int
 	LastError           string
+	TotalChecks         int64
+	TotalUp             int64
+}
+
+// UptimePct returns the uptime percentage based on recorded results.
+func (ms *MonitorState) UptimePct() float64 {
+	if ms.TotalChecks == 0 {
+		return 100.0
+	}
+	return float64(ms.TotalUp) / float64(ms.TotalChecks) * 100.0
 }
 
 func NewMonitorState(name string, failureThreshold int) *MonitorState {
@@ -60,7 +70,9 @@ func NewMonitorState(name string, failureThreshold int) *MonitorState {
 }
 
 func (ms *MonitorState) RecordResult(result checks.Result) Transition {
+	ms.TotalChecks++
 	if result.Status == "up" {
+		ms.TotalUp++
 		ms.ConsecutiveFailures = 0
 		ms.LastError = ""
 		if ms.Status == StatusDown {

@@ -13,6 +13,7 @@ type HTTPChecker struct {
 	URL                string
 	Timeout            int
 	InsecureSkipVerify bool
+	AcceptedCodes      []int // if set, only these codes are UP; if empty, < 500 is UP
 }
 
 type httpMetadata struct {
@@ -71,7 +72,17 @@ func (c *HTTPChecker) Check(monitorName string) Result {
 
 	status := "up"
 	var errMsg string
-	if resp.StatusCode >= 400 {
+	isUp := resp.StatusCode < 500 // default: anything except 5xx is UP
+	if len(c.AcceptedCodes) > 0 {
+		isUp = false
+		for _, code := range c.AcceptedCodes {
+			if resp.StatusCode == code {
+				isUp = true
+				break
+			}
+		}
+	}
+	if !isUp {
 		status = "down"
 		errMsg = fmt.Sprintf("HTTP %d", resp.StatusCode)
 	}

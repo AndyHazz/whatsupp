@@ -112,6 +112,13 @@
 
   onDestroy(unsub);
 
+  function fmtBytes(b) {
+    if (b >= 1e12) return (b / 1e12).toFixed(1) + ' TB';
+    if (b >= 1e9) return (b / 1e9).toFixed(1) + ' GB';
+    if (b >= 1e6) return (b / 1e6).toFixed(0) + ' MB';
+    return (b / 1e3).toFixed(0) + ' KB';
+  }
+
   function formatLastSeen(ts) {
     if (!ts) return 'Never';
     const diff = Math.floor(Date.now() / 1000) - ts;
@@ -140,10 +147,21 @@
         <Gauge value={latestMetrics['cpu.usage_pct']} label="CPU" />
       {/if}
       {#if latestMetrics['mem.usage_pct'] != null}
-        <Gauge value={latestMetrics['mem.usage_pct']} label="RAM" />
+        <div class="gauge-with-detail">
+          <Gauge value={latestMetrics['mem.usage_pct']} label="RAM" />
+          {#if latestMetrics['mem.total_bytes']}
+            <span class="detail">{fmtBytes(latestMetrics['mem.used_bytes'] || 0)} / {fmtBytes(latestMetrics['mem.total_bytes'])}</span>
+          {/if}
+        </div>
       {/if}
       {#each Object.entries(latestMetrics).filter(([k, v]) => k.match(/^disk\..*usage_pct$/) && !k.includes('/snap/') && !k.includes('/boot/') && !k.includes('/mnt/data') && v < 99.5) as [mname, val]}
-        <Gauge value={val} label="Disk {mname.match(/^disk\.(.+)\.usage_pct$/)?.[1] || '?'}" />
+        {@const mount = mname.match(/^disk\.(.+)\.usage_pct$/)?.[1] || '?'}
+        <div class="gauge-with-detail">
+          <Gauge value={val} label="Disk {mount}" />
+          {#if latestMetrics[`disk.${mount}.total_bytes`]}
+            <span class="detail">{fmtBytes(latestMetrics[`disk.${mount}.used_bytes`] || 0)} / {fmtBytes(latestMetrics[`disk.${mount}.total_bytes`])}</span>
+          {/if}
+        </div>
       {/each}
     </div>
 
@@ -203,6 +221,17 @@
   .chart-card h3 {
     font-size: 1rem;
     margin-bottom: 8px;
+    color: var(--fg-muted);
+  }
+
+  .gauge-with-detail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .gauge-with-detail .detail {
+    font-size: 0.7rem;
     color: var(--fg-muted);
   }
 
