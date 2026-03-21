@@ -1,0 +1,27 @@
+# docker-compose.agent.yml — WhatsUpp agent deployment
+# Deploy on each monitored host
+services:
+  whatsupp-agent:
+    image: ghcr.io/andyhazz/whatsupp:latest
+    container_name: whatsupp-agent
+    restart: unless-stopped
+    command: agent
+    environment:
+      - WHATSUPP_HUB_URL=${WHATSUPP_HUB_URL}
+      - WHATSUPP_AGENT_KEY=${AGENT_KEY}
+      - DOCKER_HOST=tcp://docker-proxy:2375
+    volumes:
+      - /:/hostfs:ro
+    pid: host
+    depends_on:
+      - docker-proxy
+
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy
+    container_name: docker-proxy
+    restart: unless-stopped
+    environment:
+      - CONTAINERS=1
+      - POST=0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
