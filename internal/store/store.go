@@ -46,6 +46,20 @@ type SecurityBaseline struct {
 	UpdatedAt         int64
 }
 
+// User represents an authenticated user.
+type User struct {
+	ID           int64
+	Username     string
+	PasswordHash string
+}
+
+// Session represents an active login session.
+type Session struct {
+	Token     string
+	UserID    int64
+	ExpiresAt int64
+}
+
 // Store wraps the SQLite database.
 type Store struct {
 	db *sql.DB

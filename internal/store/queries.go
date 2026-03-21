@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"time"
 )
 
 // InsertCheckResult stores a single check result.
@@ -271,4 +272,84 @@ func (s *Store) GetIncidents(from, to int64) ([]Incident, error) {
 		incidents = append(incidents, inc)
 	}
 	return incidents, rows.Err()
+}
+
+// CreateUser inserts a new user.
+func (s *Store) CreateUser(username, passwordHash string) error {
+	_, err := s.db.Exec(
+		`INSERT INTO users (username, password_hash) VALUES (?, ?)`,
+		username, passwordHash,
+	)
+	return err
+}
+
+// GetUserByUsername returns the user with the given username, or nil if not found.
+func (s *Store) GetUserByUsername(username string) (*User, error) {
+	row := s.db.QueryRow(
+		`SELECT id, username, password_hash FROM users WHERE username = ?`,
+		username,
+	)
+	var u User
+	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+// UserCount returns the total number of users.
+func (s *Store) UserCount() (int, error) {
+	var count int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&count)
+	return count, err
+}
+
+// CreateSession inserts a new session.
+func (s *Store) CreateSession(token string, userID int64, expiresAt time.Time) error {
+	_, err := s.db.Exec(
+		`INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)`,
+		token, userID, expiresAt.Unix(),
+	)
+	return err
+}
+
+// GetSession returns the session with the given token, or nil if not found.
+func (s *Store) GetSession(token string) (*Session, error) {
+	row := s.db.QueryRow(
+		`SELECT token, user_id, expires_at FROM sessions WHERE token = ?`,
+		token,
+	)
+	var sess Session
+	err := row.Scan(&sess.Token, &sess.UserID, &sess.ExpiresAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &sess, nil
+}
+
+// DeleteSession removes a session by token.
+func (s *Store) DeleteSession(token string) error {
+	_, err := s.db.Exec(`DELETE FROM sessions WHERE token = ?`, token)
+	return err
+}
+
+// DeleteExpiredSessions removes all sessions past their expiry.
+func (s *Store) DeleteExpiredSessions() error {
+	_, err := s.db.Exec(`DELETE FROM sessions WHERE expires_at < ?`, time.Now().Unix())
+	return err
+}
+
+// RenewSession updates the expiry time of an existing session.
+func (s *Store) RenewSession(token string, expiresAt time.Time) error {
+	_, err := s.db.Exec(
+		`UPDATE sessions SET expires_at = ? WHERE token = ?`,
+		expiresAt.Unix(), token,
+	)
+	return err
 }
