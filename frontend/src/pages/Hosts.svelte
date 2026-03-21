@@ -4,6 +4,7 @@
   import { api } from '../lib/api.js';
   import { onMessage } from '../lib/ws.js';
   import Gauge from '../components/Gauge.svelte';
+  import Skeleton from '../components/Skeleton.svelte';
 
   let hosts = [];
   let hostMetrics = {}; // host -> { metricName: value }
@@ -67,7 +68,9 @@
   <h1>Hosts</h1>
 
   {#if loading}
-    <p class="muted">Loading hosts...</p>
+  <div class="grid">
+    <Skeleton variant="card" count={4} />
+  </div>
   {:else if error}
     <p class="error">{error}</p>
   {:else if hosts.length === 0}
@@ -114,11 +117,15 @@
     padding: 16px;
     text-decoration: none;
     color: var(--fg);
-    border: 1px solid transparent;
-    transition: border-color 0.15s;
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-card);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
   }
   .card:hover {
-    border-color: var(--purple);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(189, 147, 249, 0.1);
+    border-color: rgba(189, 147, 249, 0.3);
+    background: var(--bg-card-hover);
     text-decoration: none;
   }
 

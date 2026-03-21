@@ -6,6 +6,7 @@
   import TimeRangeSelector from '../components/TimeRangeSelector.svelte';
   import Gauge from '../components/Gauge.svelte';
   import { dracula } from '../lib/theme.js';
+  import Skeleton from '../components/Skeleton.svelte';
 
   export let name;
 
@@ -130,7 +131,9 @@
 
 <div class="host-detail">
   {#if loading && !host}
-    <p class="muted">Loading...</p>
+  <div class="gauges-row">
+    <Skeleton variant="gauge" count={3} />
+  </div>
   {:else if error}
     <p class="error">{error}</p>
   {:else if host}
@@ -205,6 +208,8 @@
     background: var(--bg-card);
     border-radius: var(--radius);
     flex-wrap: wrap;
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-card);
   }
 
   .charts {
@@ -217,6 +222,8 @@
     background: var(--bg-card);
     padding: 16px;
     border-radius: var(--radius);
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-card);
   }
   .chart-card h3 {
     font-size: 1rem;
