@@ -6,7 +6,6 @@
   import TimeRangeSelector from '../components/TimeRangeSelector.svelte';
   import Gauge from '../components/Gauge.svelte';
   import { dracula } from '../lib/theme.js';
-  import Skeleton from '../components/Skeleton.svelte';
 
   export let name;
 
@@ -131,9 +130,17 @@
 
 <div class="host-detail">
   {#if loading && !host}
-  <div class="gauges-row">
-    <Skeleton variant="gauge" count={3} />
-  </div>
+    <div class="time-bar">
+      <div class="skel" style="width:200px;height:28px;"></div>
+    </div>
+    <div class="charts">
+      {#each Array(4) as _}
+        <div class="chart-card">
+          <div class="skel" style="width:40%;height:16px;margin-bottom:8px;"></div>
+          <div class="skel" style="width:100%;height:250px;border-radius:var(--radius);"></div>
+        </div>
+      {/each}
+    </div>
   {:else if error}
     <p class="error">{error}</p>
   {:else if host}
@@ -142,30 +149,32 @@
         <h1>{host.host}</h1>
         <span class="last-seen">Last seen: {formatLastSeen(host.last_seen_at)}</span>
       </div>
-      <TimeRangeSelector selected={rangeSeconds} on:change={(e) => { rangeSeconds = e.detail; loadData(); }} />
+      <div class="header-gauges">
+        {#if latestMetrics['cpu.usage_pct'] != null}
+          <Gauge value={latestMetrics['cpu.usage_pct']} label="CPU" size={56} />
+        {/if}
+        {#if latestMetrics['mem.usage_pct'] != null}
+          <div class="gauge-with-detail">
+            <Gauge value={latestMetrics['mem.usage_pct']} label="RAM" size={56} />
+            {#if latestMetrics['mem.total_bytes']}
+              <span class="detail">{fmtBytes(latestMetrics['mem.used_bytes'] || 0)} / {fmtBytes(latestMetrics['mem.total_bytes'])}</span>
+            {/if}
+          </div>
+        {/if}
+        {#each Object.entries(latestMetrics).filter(([k, v]) => k.match(/^disk\..*usage_pct$/) && !k.includes('/snap/') && !k.includes('/boot/') && !k.includes('/mnt/data') && v < 99.5) as [mname, val]}
+          {@const mount = mname.match(/^disk\.(.+)\.usage_pct$/)?.[1] || '?'}
+          <div class="gauge-with-detail">
+            <Gauge value={val} label="Disk {mount}" size={56} />
+            {#if latestMetrics[`disk.${mount}.total_bytes`]}
+              <span class="detail">{fmtBytes(latestMetrics[`disk.${mount}.used_bytes`] || 0)} / {fmtBytes(latestMetrics[`disk.${mount}.total_bytes`])}</span>
+            {/if}
+          </div>
+        {/each}
+      </div>
     </div>
 
-    <div class="gauges-row">
-      {#if latestMetrics['cpu.usage_pct'] != null}
-        <Gauge value={latestMetrics['cpu.usage_pct']} label="CPU" />
-      {/if}
-      {#if latestMetrics['mem.usage_pct'] != null}
-        <div class="gauge-with-detail">
-          <Gauge value={latestMetrics['mem.usage_pct']} label="RAM" />
-          {#if latestMetrics['mem.total_bytes']}
-            <span class="detail">{fmtBytes(latestMetrics['mem.used_bytes'] || 0)} / {fmtBytes(latestMetrics['mem.total_bytes'])}</span>
-          {/if}
-        </div>
-      {/if}
-      {#each Object.entries(latestMetrics).filter(([k, v]) => k.match(/^disk\..*usage_pct$/) && !k.includes('/snap/') && !k.includes('/boot/') && !k.includes('/mnt/data') && v < 99.5) as [mname, val]}
-        {@const mount = mname.match(/^disk\.(.+)\.usage_pct$/)?.[1] || '?'}
-        <div class="gauge-with-detail">
-          <Gauge value={val} label="Disk {mount}" />
-          {#if latestMetrics[`disk.${mount}.total_bytes`]}
-            <span class="detail">{fmtBytes(latestMetrics[`disk.${mount}.used_bytes`] || 0)} / {fmtBytes(latestMetrics[`disk.${mount}.total_bytes`])}</span>
-          {/if}
-        </div>
-      {/each}
+    <div class="time-bar">
+      <TimeRangeSelector selected={rangeSeconds} on:change={(e) => { rangeSeconds = e.detail; loadData(); }} />
     </div>
 
     <div class="charts">
@@ -192,22 +201,27 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
     flex-wrap: wrap;
     gap: 12px;
   }
   .header-left h1 { margin-bottom: 2px; }
   .last-seen { font-size: 0.85rem; color: var(--fg-muted); }
 
-  .gauges-row {
+  .header-gauges {
     display: flex;
-    gap: 24px;
-    justify-content: center;
-    margin-bottom: 24px;
-    padding: 16px;
+    gap: 16px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .time-bar {
+    display: flex;
+    justify-content: flex-end;
+    padding: 8px 16px;
+    margin-bottom: var(--gap);
     background: var(--bg-card);
     border-radius: var(--radius);
-    flex-wrap: wrap;
     border: 1px solid var(--border-subtle);
     box-shadow: var(--shadow-card);
   }
@@ -235,13 +249,22 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
+    gap: 2px;
   }
   .gauge-with-detail .detail {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     color: var(--fg-muted);
   }
 
   .error { color: var(--red); }
 
+  @media (max-width: 768px) {
+    .header {
+      flex-direction: column;
+    }
+    .header-gauges {
+      justify-content: center;
+      width: 100%;
+    }
+  }
 </style>
