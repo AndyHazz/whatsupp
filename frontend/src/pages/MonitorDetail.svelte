@@ -192,12 +192,6 @@
   tbody tr:hover {
     background-color: rgba(248, 248, 242, 0.04);
   }
-  .skel {
-    background: linear-gradient(90deg, #323543 25%, #3a3d4e 50%, #323543 75%);
-    background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
-    border-radius: 4px;
-  }
   .cause { color: var(--red); }
   .error { color: var(--red); }
 </style>

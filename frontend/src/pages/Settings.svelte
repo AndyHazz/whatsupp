@@ -211,10 +211,4 @@
   .error-msg { background: rgba(255, 85, 85, 0.12); color: var(--red); }
   .success-msg { background: rgba(80, 250, 123, 0.12); color: var(--green); }
 
-  .skel {
-    background: linear-gradient(90deg, #323543 25%, #3a3d4e 50%, #323543 75%);
-    background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
-    border-radius: 4px;
-  }
 </style>

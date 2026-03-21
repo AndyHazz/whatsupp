@@ -30,13 +30,6 @@
 {/each}
 
 <style>
-  .skel {
-    background: linear-gradient(90deg, #323543 25%, #3a3d4e 50%, #323543 75%);
-    background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
-    border-radius: 4px;
-  }
-
   .skel-text {
     height: 14px;
   }
