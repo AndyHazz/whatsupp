@@ -327,3 +327,34 @@ func TestEnsureAdminUser_SkipsWhenUsersExist(t *testing.T) {
 		t.Error("should not create admin when users already exist")
 	}
 }
+
+func TestSessionCleanup_DeletesExpired(t *testing.T) {
+	store := newTestStore(t)
+	// Create a user first (sessions reference users via FK)
+	hash, _ := HashPassword("test")
+	store.CreateUser("testuser", hash)
+	// Create an expired session
+	store.CreateSession("expired", 1, time.Now().Add(-time.Hour))
+	// Create a valid session
+	store.CreateSession("valid", 1, time.Now().Add(time.Hour))
+
+	store.DeleteExpiredSessions()
+
+	// Verify expired is gone
+	sess, err := store.GetSession("expired")
+	if err != nil {
+		t.Fatalf("GetSession: %v", err)
+	}
+	if sess != nil {
+		t.Error("expired session should have been deleted")
+	}
+
+	// Verify valid session still exists
+	sess, err = store.GetSession("valid")
+	if err != nil {
+		t.Fatalf("GetSession: %v", err)
+	}
+	if sess == nil {
+		t.Error("valid session should still exist")
+	}
+}
