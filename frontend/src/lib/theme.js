@@ -14,10 +14,11 @@ export const dracula = {
 
 // Semantic aliases for use in components
 export const theme = {
-  bg:         dracula.bg,
-  bgCard:     dracula.currentLine,
+  bg:         '#1e1f29',
+  bgCard:     '#282a36',
+  bgDeep:     '#1e1f29',
   text:       dracula.fg,
-  textMuted:  dracula.comment,
+  textMuted:  '#a4aecf',
   success:    dracula.green,
   error:      dracula.red,
   warning:    dracula.orange,
