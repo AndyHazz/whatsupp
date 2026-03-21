@@ -60,14 +60,32 @@
       },
     ],
     series: [
-      {},
+      {
+        // Time series — show latest value when not hovering
+        value: (u, ts) => {
+          if (ts == null && data[0].length) {
+            // Not hovering — show latest timestamp
+            const last = data[0][data[0].length - 1];
+            return new Date(last * 1000).toLocaleTimeString();
+          }
+          return ts != null ? new Date(ts * 1000).toLocaleTimeString() : '—';
+        },
+      },
       {
         label,
         stroke: color,
         width: 1.5,
         fill: `${color}${Math.round(fillAlpha * 255).toString(16).padStart(2, '0')}`,
         points: { show: false },
-        value: (u, v) => v != null ? fmtVal(v) + unit : '—',
+        value: (u, v, seriesIdx, dataIdx) => {
+          if (v != null) return fmtVal(v) + unit;
+          // Not hovering — show latest value
+          if (data[1] && data[1].length) {
+            const last = data[1][data[1].length - 1];
+            return last != null ? fmtVal(last) + unit : '—';
+          }
+          return '—';
+        },
       },
     ],
     legend: {
@@ -79,10 +97,6 @@
     if (chart) chart.destroy();
     if (!container || !data[0].length) return;
     chart = new uPlot(opts(), data, container);
-    // Set cursor to last point so legend shows latest value
-    try {
-      chart.setCursor({ left: chart.bbox.width, top: 0 });
-    } catch { /* ignore if not ready */ }
   }
 
   function resize() {
@@ -99,10 +113,6 @@
   afterUpdate(() => {
     if (chart && data[0].length) {
       chart.setData(data);
-      // Update legend to latest value
-      try {
-        chart.setCursor({ left: chart.bbox.width, top: 0 });
-      } catch {}
     } else {
       create();
     }

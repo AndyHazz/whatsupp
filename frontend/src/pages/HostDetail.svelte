@@ -142,8 +142,8 @@
       {#if latestMetrics['mem.usage_pct'] != null}
         <Gauge value={latestMetrics['mem.usage_pct']} label="RAM" />
       {/if}
-      {#each Object.entries(latestMetrics).filter(([k]) => k.match(/^disk\..*usage_pct$/)) as [mname, val]}
-        <Gauge value={val} label="Disk {mname.split('.')[1]}" />
+      {#each Object.entries(latestMetrics).filter(([k, v]) => k.match(/^disk\..*usage_pct$/) && !k.includes('/snap/') && !k.includes('/boot/') && !k.includes('/mnt/data') && v < 99.5) as [mname, val]}
+        <Gauge value={val} label="Disk {mname.match(/^disk\.(.+)\.usage_pct$/)?.[1] || '?'}" />
       {/each}
     </div>
 
@@ -191,7 +191,7 @@
 
   .charts {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    grid-template-columns: repeat(3, 1fr);
     gap: var(--gap);
   }
 
@@ -208,4 +208,11 @@
 
   .muted { color: var(--fg-muted); }
   .error { color: var(--red); }
+
+  @media (max-width: 1200px) {
+    .charts { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 768px) {
+    .charts { grid-template-columns: 1fr; }
+  }
 </style>

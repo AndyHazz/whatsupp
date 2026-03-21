@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -13,7 +14,13 @@ var virtualFS = map[string]bool{
 	"devpts": true, "securityfs": true, "cgroup": true, "cgroup2": true,
 	"pstore": true, "efivarfs": true, "bpf": true, "tracefs": true,
 	"debugfs": true, "hugetlbfs": true, "mqueue": true, "fusectl": true,
-	"overlay": true, "nsfs": true, "fuse.lxcfs": true,
+	"overlay": true, "nsfs": true, "fuse.lxcfs": true, "squashfs": true,
+}
+
+func skipMount(mountpoint string) bool {
+	return strings.HasPrefix(mountpoint, "/snap/") ||
+		strings.HasPrefix(mountpoint, "/boot/efi") ||
+		strings.HasPrefix(mountpoint, "/boot/firmware")
 }
 
 // DiskCollector collects disk usage and I/O metrics.
@@ -39,7 +46,7 @@ func (c *DiskCollector) Collect(ctx context.Context) ([]Metric, error) {
 	}
 
 	for _, p := range partitions {
-		if virtualFS[p.Fstype] {
+		if virtualFS[p.Fstype] || skipMount(p.Mountpoint) {
 			continue
 		}
 
@@ -66,6 +73,9 @@ func (c *DiskCollector) Collect(ctx context.Context) ([]Metric, error) {
 			elapsed := now.Sub(c.prevTime).Seconds()
 			if elapsed > 0 {
 				for name, curr := range ioCounters {
+					if strings.HasPrefix(name, "loop") {
+						continue
+					}
 					if prev, ok := c.prevIO[name]; ok {
 						readIOPS := float64(curr.ReadCount-prev.ReadCount) / elapsed
 						writeIOPS := float64(curr.WriteCount-prev.WriteCount) / elapsed
