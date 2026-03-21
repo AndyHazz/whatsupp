@@ -285,7 +285,7 @@ func (h *Hub) MonitorStatus(name string) (api.MonitorStatus, bool) {
 
 // SendTestNotification sends a test alert via ntfy.
 func (h *Hub) SendTestNotification() error {
-	return h.alerter.SendDown("WhatsUpp Test", "This is a test notification from WhatsUpp")
+	return h.alerter.SendTest()
 }
 
 // ReloadConfig re-reads the YAML config and applies changes.

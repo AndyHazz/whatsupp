@@ -27,11 +27,11 @@ type NtfyClient struct {
 }
 
 type ntfyMessage struct {
-	Topic    string `json:"topic"`
-	Title    string `json:"title"`
-	Message  string `json:"message"`
-	Priority int    `json:"priority"`
-	Tags     string `json:"tags,omitempty"`
+	Topic    string   `json:"topic"`
+	Title    string   `json:"title"`
+	Message  string   `json:"message"`
+	Priority int      `json:"priority"`
+	Tags     []string `json:"tags,omitempty"`
 }
 
 func NewNtfyClient(cfg NtfyConfig) *NtfyClient {
@@ -61,7 +61,7 @@ func (n *NtfyClient) SendDown(monitor, cause string) error {
 		Title:    fmt.Sprintf("%s is DOWN", monitor),
 		Message:  fmt.Sprintf("%s is DOWN - %s", monitor, cause),
 		Priority: 4,
-		Tags:     "rotating_light",
+		Tags:     []string{"rotating_light"},
 	}
 	return n.send(msg)
 }
@@ -76,7 +76,7 @@ func (n *NtfyClient) SendRecovery(monitor, downDuration string) error {
 		Title:    fmt.Sprintf("%s is UP", monitor),
 		Message:  fmt.Sprintf("%s is UP - was down for %s", monitor, downDuration),
 		Priority: 3,
-		Tags:     "white_check_mark",
+		Tags:     []string{"white_check_mark"},
 	}
 	return n.send(msg)
 }
@@ -87,7 +87,7 @@ func (n *NtfyClient) SendNewPort(target string, port int) error {
 		Title:    fmt.Sprintf("Security: new port on %s", target),
 		Message:  fmt.Sprintf("Security: new port %d/tcp on %s (not in baseline)", port, target),
 		Priority: 5,
-		Tags:     "warning",
+		Tags:     []string{"warning"},
 	}
 	return n.send(msg)
 }
@@ -98,7 +98,7 @@ func (n *NtfyClient) SendPortGone(target string, port int) error {
 		Title:    fmt.Sprintf("Security: port gone on %s", target),
 		Message:  fmt.Sprintf("Security: port %d/tcp no longer open on %s", port, target),
 		Priority: 4,
-		Tags:     "warning",
+		Tags:     []string{"warning"},
 	}
 	return n.send(msg)
 }
@@ -109,7 +109,19 @@ func (n *NtfyClient) SendSSLExpiry(domain string, daysLeft int) error {
 		Title:    fmt.Sprintf("SSL cert expiring: %s", domain),
 		Message:  fmt.Sprintf("SSL cert for %s expires in %d days", domain, daysLeft),
 		Priority: 4,
-		Tags:     "lock,warning",
+		Tags:     []string{"lock", "warning"},
+	}
+	return n.send(msg)
+}
+
+// SendTest sends a test notification, bypassing deduplication.
+func (n *NtfyClient) SendTest() error {
+	msg := ntfyMessage{
+		Topic:    n.config.Topic,
+		Title:    "WhatsUpp Test",
+		Message:  "This is a test notification from WhatsUpp",
+		Priority: 3,
+		Tags:     []string{"white_check_mark"},
 	}
 	return n.send(msg)
 }
