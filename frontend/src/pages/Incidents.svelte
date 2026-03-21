@@ -4,6 +4,7 @@
   import { api } from '../lib/api.js';
   import { onMessage } from '../lib/ws.js';
   import StatusBadge from '../components/StatusBadge.svelte';
+  import Skeleton from '../components/Skeleton.svelte';
 
   let incidents = [];
   let loading = true;
@@ -73,7 +74,16 @@
   <h1>Incidents</h1>
 
   {#if loading}
-    <p class="muted">Loading incidents...</p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Started</th><th>Monitor</th><th>Status</th><th>Duration</th><th>Cause</th></tr>
+      </thead>
+      <tbody>
+        <Skeleton variant="table-row" count={5} />
+      </tbody>
+    </table>
+  </div>
   {:else if error}
     <p class="error">{error}</p>
   {:else if incidents.length === 0}
@@ -129,6 +139,8 @@
     background: var(--bg-card);
     border-radius: var(--radius);
     overflow-x: auto;
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-card);
   }
 
   table {
@@ -139,7 +151,7 @@
   th {
     text-align: left;
     padding: 12px;
-    border-bottom: 1px solid var(--fg-muted);
+    border-bottom: 1px solid var(--border-subtle);
     color: var(--fg-muted);
     font-weight: 600;
     white-space: nowrap;
@@ -152,9 +164,16 @@
 
   td {
     padding: 10px 12px;
-    border-bottom: 1px solid rgba(98, 114, 164, 0.15);
+    border-bottom: 1px solid var(--border-subtle);
   }
   .cause { color: var(--red); max-width: 300px; }
+
+  tbody tr {
+    transition: background-color 0.15s ease;
+  }
+  tbody tr:hover {
+    background-color: rgba(248, 248, 242, 0.04);
+  }
 
   .muted { color: var(--fg-muted); }
   .error { color: var(--red); }
