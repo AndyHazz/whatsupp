@@ -1,0 +1,72 @@
+server:
+  listen: ":8080"
+  db_path: "/data/whatsupp.db"
+
+auth:
+  initial_username: "admin"
+  initial_password: "${WHATSUPP_ADMIN_PASSWORD}"
+
+monitors:
+  - name: "Plex"
+    type: http
+    url: "https://plex.intadnet.duckdns.org"
+    interval: 60s
+    failure_threshold: 3
+
+  - name: "N8N"
+    type: http
+    url: "https://n8n8n8n.duckdns.org"
+    interval: 60s
+
+  - name: "Gateway"
+    type: ping
+    host: "192.168.50.1"
+    interval: 60s
+
+  - name: "VPN Tunnel"
+    type: ping
+    host: "10.7.0.2"
+    interval: 120s
+
+  - name: "Minecraft"
+    type: port
+    host: "84.18.245.85"
+    port: 25565
+    interval: 120s
+
+agents:
+  - name: "plexypi"
+    key: "${AGENT_KEY_PLEXYPI}"
+  - name: "dietpi"
+    key: "${AGENT_KEY_DIETPI}"
+
+security:
+  targets:
+    - host: "84.18.245.85"
+      schedule: "0 3 * * 0"
+      scan_concurrency: 200
+      timeout: "2s"
+    - host: "145.241.217.231"
+      schedule: "0 4 * * 0"
+      scan_concurrency: 500
+      timeout: "2s"
+
+alerting:
+  default_failure_threshold: 3
+  ntfy:
+    url: "${NTFY_URL}"
+    topic: "${NTFY_TOPIC}"
+    username: "${NTFY_USERNAME}"
+    password: "${NTFY_PASSWORD}"
+  thresholds:
+    ssl_expiry_days: [14, 7, 3, 1]
+    disk_usage_pct: 90
+    disk_hysteresis_pct: 5
+    down_reminder_interval: "1h"
+
+retention:
+  check_results_raw: "720h"
+  agent_metrics_raw: "48h"
+  agent_metrics_5min: "2160h"
+  hourly: "4320h"
+  daily: "0"
