@@ -13,6 +13,7 @@
 
   // Map of monitor name -> recent latency values for sparkline
   let sparklines = {};
+  let sparklineStatuses = {};
   let viewMode = 'cards'; // 'cards' | 'list'
 
   onMount(async () => {
@@ -29,10 +30,13 @@
       await Promise.all(monitors.map(async (m) => {
         try {
           const results = await api.getMonitorResults(m.name, oneHourAgo, now);
-          sparklines[m.name] = (results || []).map(r => r.latency_ms).filter(v => v != null);
+          const filtered = (results || []).filter(r => r.latency_ms != null);
+          sparklines[m.name] = filtered.map(r => r.latency_ms);
+          sparklineStatuses[m.name] = filtered.map(r => r.status || 'up');
         } catch { /* ignore */ }
       }));
       sparklines = sparklines; // trigger reactivity
+      sparklineStatuses = sparklineStatuses;
     } catch (e) {
       error = e.message;
     } finally {
@@ -58,6 +62,9 @@
     // Append to sparkline
     if (sparklines[data.monitor] && data.latency_ms != null) {
       sparklines[data.monitor] = [...sparklines[data.monitor].slice(-59), data.latency_ms];
+    }
+    if (sparklineStatuses[data.monitor]) {
+      sparklineStatuses[data.monitor] = [...sparklineStatuses[data.monitor].slice(-59), data.status || 'up'];
     }
   });
 
@@ -95,7 +102,7 @@
             <StatusBadge status={m.status} />
           </div>
           <div class="card-body">
-            <Sparkline data={sparklines[m.name] || []} />
+            <Sparkline data={sparklines[m.name] || []} statuses={sparklineStatuses[m.name] || []} />
             <div class="meta">
               {#if m.latency_ms != null}
                 <span class="latency">{Math.round(m.latency_ms)}<span class="unit">ms</span></span>
