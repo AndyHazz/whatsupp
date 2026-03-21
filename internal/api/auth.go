@@ -5,8 +5,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -131,6 +131,33 @@ func (rl *LoginRateLimiter) RecordSuccess(ip string) {
 	}
 }
 
+// Cleanup removes stale records that have no recent attempts and are not locked.
+// Should be called periodically (e.g. every hour).
+func (rl *LoginRateLimiter) Cleanup() {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	now := time.Now()
+	cutoff := now.Add(-rateLimitWindow * 2) // 2x the window to be safe
+	for ip, rec := range rl.records {
+		// Skip if still locked
+		if now.Before(rec.lockedUntil) {
+			continue
+		}
+		// Remove if no recent attempts
+		hasRecent := false
+		for _, t := range rec.attempts {
+			if t.After(cutoff) {
+				hasRecent = true
+				break
+			}
+		}
+		if !hasRecent && rec.failures == 0 {
+			delete(rl.records, ip)
+		}
+	}
+}
+
 // loginRequest is the JSON body for POST /auth/login.
 type loginRequest struct {
 	Username string `json:"username"`
@@ -148,6 +175,7 @@ func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req loginRequest
+	r.Body = http.MaxBytesReader(w, r.Body, 4096) // 4KB limit for login payload
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
@@ -215,20 +243,16 @@ func (h *Handlers) Logout(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
-// extractIP gets the client IP, preferring X-Forwarded-For for reverse proxies.
+// extractIP gets the client IP from RemoteAddr.
+// We rely on chi's RealIP middleware to set RemoteAddr from trusted proxy headers,
+// so we do NOT parse X-Forwarded-For here (avoids spoofing that bypasses rate limiting).
 func extractIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// First IP in the chain is the original client
-		if idx := strings.Index(xff, ","); idx != -1 {
-			return strings.TrimSpace(xff[:idx])
-		}
-		return strings.TrimSpace(xff)
+	// RemoteAddr is already set by chi's RealIP middleware if behind a reverse proxy.
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
 	}
-	// Strip port from RemoteAddr
-	if idx := strings.LastIndex(r.RemoteAddr, ":"); idx != -1 {
-		return r.RemoteAddr[:idx]
-	}
-	return r.RemoteAddr
+	return host
 }
 
 // EnsureAdminUser creates the initial admin user from config if no users exist.

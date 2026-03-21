@@ -69,7 +69,7 @@ func (c *DockerCollector) Collect(ctx context.Context) ([]Metric, error) {
 		}
 
 		var statsJSON types.StatsJSON
-		data, err := io.ReadAll(stats.Body)
+		data, err := io.ReadAll(io.LimitReader(stats.Body, 1<<20)) // 1MB limit
 		stats.Body.Close()
 		if err != nil {
 			continue

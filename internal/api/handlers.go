@@ -402,6 +402,7 @@ type agentMetricsPayload struct {
 // PostAgentMetrics handles POST /api/v1/agent/metrics.
 // Authenticated via AgentKeyAuth middleware (bearer token).
 func (h *Handlers) PostAgentMetrics(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit for metrics payload
 	var payload agentMetricsPayload
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
@@ -411,6 +412,14 @@ func (h *Handlers) PostAgentMetrics(w http.ResponseWriter, r *http.Request) {
 	if payload.Host == "" || len(payload.Metrics) == 0 {
 		jsonError(w, "host and metrics are required", http.StatusBadRequest)
 		return
+	}
+
+	// Verify agent is pushing metrics for its own authenticated host
+	if authedHost, ok := r.Context().Value(agentHostKey).(string); ok && authedHost != "" {
+		if payload.Host != authedHost {
+			jsonError(w, "agent key does not match host", http.StatusForbidden)
+			return
+		}
 	}
 
 	ts, err := time.Parse(time.RFC3339, payload.Timestamp)

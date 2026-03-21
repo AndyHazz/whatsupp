@@ -33,6 +33,7 @@ func NewRouter(cfg RouterConfig) RouterResult {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
+	r.Use(securityHeaders)
 
 	// Create WebSocket hub
 	wsHub := NewWSHub()
@@ -62,6 +63,7 @@ func NewRouter(cfg RouterConfig) RouterResult {
 			if err := cfg.Store.DeleteExpiredSessions(); err != nil {
 				log.Printf("session cleanup error: %v", err)
 			}
+			h.rateLimiter.Cleanup()
 		}
 	}()
 
