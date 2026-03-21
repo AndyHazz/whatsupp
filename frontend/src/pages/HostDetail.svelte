@@ -5,6 +5,7 @@
   import Chart from '../components/Chart.svelte';
   import TimeRangeSelector from '../components/TimeRangeSelector.svelte';
   import Gauge from '../components/Gauge.svelte';
+  import ContainerTable from '../components/ContainerTable.svelte';
   import { dracula } from '../lib/theme.js';
 
   export let name;
@@ -20,11 +21,12 @@
     { key: 'disk',    label: 'Disk Usage',    names: 'disk',                 unit: '%',  color: dracula.orange },
     { key: 'net',     label: 'Network',       names: 'net',                  unit: 'B/s', color: dracula.cyan },
     { key: 'temp',    label: 'Temperature',   names: 'temp',                 unit: '°C', color: dracula.red },
-    { key: 'docker',  label: 'Docker',        names: 'docker',               unit: '%',  color: dracula.green },
+    { key: 'battery', label: 'Battery',       names: 'battery.charge_pct',   unit: '%',  color: dracula.yellow },
   ];
 
   let chartsData = {};
   let latestMetrics = {}; // Latest value per metric_name
+  let allMetricPoints = []; // raw metric points for container charts
 
   async function loadData() {
     loading = true;
@@ -40,6 +42,8 @@
       try {
         allMetrics = await api.getHostMetrics(name, from, now, null) || [];
       } catch { /* no metrics yet */ }
+
+      allMetricPoints = allMetrics;
 
       // Group by metric_name
       const byName = {};
@@ -75,10 +79,6 @@
               }
             } else if (cat.key === 'temp') {
               if (!primaryName) primaryName = mname;
-            } else if (cat.key === 'docker') {
-              if (mname.endsWith('cpu_pct') && !primaryName) {
-                primaryName = mname;
-              }
             } else {
               primaryName = cat.names;
             }
@@ -170,6 +170,12 @@
             {/if}
           </div>
         {/each}
+        {#if latestMetrics['battery.charge_pct'] != null}
+          <div class="gauge-with-detail">
+            <Gauge value={latestMetrics['battery.charge_pct']} label="Battery" size={56} />
+            <span class="detail">{latestMetrics['battery.charging'] === 1 ? 'Charging' : 'On battery'}</span>
+          </div>
+        {/if}
       </div>
     </div>
 
@@ -193,6 +199,18 @@
         {/if}
       {/each}
     </div>
+
+    {#if Object.keys(latestMetrics).some(k => k.startsWith('docker.'))}
+      <div class="container-section">
+        <h2>Containers</h2>
+        <div class="container-card">
+          <ContainerTable
+            {latestMetrics}
+            allMetrics={allMetricPoints}
+          />
+        </div>
+      </div>
+    {/if}
   {/if}
 </div>
 
@@ -254,6 +272,21 @@
   .gauge-with-detail .detail {
     font-size: 0.65rem;
     color: var(--fg-muted);
+  }
+
+  .container-section {
+    margin-top: var(--gap);
+  }
+  .container-section h2 {
+    font-size: 1.1rem;
+    margin-bottom: 8px;
+  }
+  .container-card {
+    background: var(--bg-card);
+    padding: 16px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-card);
   }
 
   .error { color: var(--red); }

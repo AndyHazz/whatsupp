@@ -31,6 +31,7 @@ func New(cfg *AgentConfig) (*Agent, error) {
 		NewNetCollector(),
 		NewTempCollector(),
 		NewDockerCollector(cfg.DockerHost),
+		NewBatteryCollector(),
 	}
 
 	return &Agent{

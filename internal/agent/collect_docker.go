@@ -6,15 +6,27 @@ import (
 	"io"
 	"log"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 )
 
+type dockerIOSnapshot struct {
+	netRx     uint64
+	netTx     uint64
+	blkRead   uint64
+	blkWrite  uint64
+}
+
 // DockerCollector collects Docker container metrics.
 type DockerCollector struct {
 	dockerHost string
+	mu         sync.Mutex
+	prevIO     map[string]dockerIOSnapshot
+	prevTime   time.Time
 }
 
 func NewDockerCollector(dockerHost string) *DockerCollector {
@@ -41,6 +53,12 @@ func (c *DockerCollector) Collect(ctx context.Context) ([]Metric, error) {
 		log.Printf("docker collector: cannot list containers: %v", err)
 		return nil, nil // non-fatal
 	}
+
+	now := time.Now()
+	currentIO := make(map[string]dockerIOSnapshot)
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	var metrics []Metric
 	for _, ctr := range containers {
@@ -78,6 +96,7 @@ func (c *DockerCollector) Collect(ctx context.Context) ([]Metric, error) {
 			continue
 		}
 
+		// CPU & memory (existing)
 		cpuPct := CalculateDockerCPUPercent(&statsJSON)
 		memUsage := float64(statsJSON.MemoryStats.Usage)
 		memLimit := float64(statsJSON.MemoryStats.Limit)
@@ -92,7 +111,58 @@ func (c *DockerCollector) Collect(ctx context.Context) ([]Metric, error) {
 			Metric{Name: DockerMetric(name, "mem_limit_bytes"), Value: memLimit},
 			Metric{Name: DockerMetric(name, "mem_usage_pct"), Value: memPct},
 		)
+
+		// Network I/O — sum across all container interfaces
+		var netRx, netTx uint64
+		for _, iface := range statsJSON.Networks {
+			netRx += iface.RxBytes
+			netTx += iface.TxBytes
+		}
+		metrics = append(metrics,
+			Metric{Name: DockerMetric(name, "net_rx_bytes"), Value: float64(netRx)},
+			Metric{Name: DockerMetric(name, "net_tx_bytes"), Value: float64(netTx)},
+		)
+
+		// Block I/O — sum read/write across all devices
+		var blkRead, blkWrite uint64
+		for _, entry := range statsJSON.BlkioStats.IoServiceBytesRecursive {
+			switch strings.ToLower(entry.Op) {
+			case "read":
+				blkRead += entry.Value
+			case "write":
+				blkWrite += entry.Value
+			}
+		}
+		metrics = append(metrics,
+			Metric{Name: DockerMetric(name, "disk_read_bytes"), Value: float64(blkRead)},
+			Metric{Name: DockerMetric(name, "disk_write_bytes"), Value: float64(blkWrite)},
+		)
+
+		// Store snapshot for rate calculation
+		snap := dockerIOSnapshot{
+			netRx:    netRx,
+			netTx:    netTx,
+			blkRead:  blkRead,
+			blkWrite: blkWrite,
+		}
+		currentIO[name] = snap
+
+		// Rate metrics (delta from previous sample)
+		if c.prevIO != nil && !c.prevTime.IsZero() {
+			elapsed := now.Sub(c.prevTime).Seconds()
+			if prev, ok := c.prevIO[name]; ok && elapsed > 0 {
+				metrics = append(metrics,
+					Metric{Name: DockerMetric(name, "net_rx_bytes_sec"), Value: float64(netRx-prev.netRx) / elapsed},
+					Metric{Name: DockerMetric(name, "net_tx_bytes_sec"), Value: float64(netTx-prev.netTx) / elapsed},
+					Metric{Name: DockerMetric(name, "disk_read_bytes_sec"), Value: float64(blkRead-prev.blkRead) / elapsed},
+					Metric{Name: DockerMetric(name, "disk_write_bytes_sec"), Value: float64(blkWrite-prev.blkWrite) / elapsed},
+				)
+			}
+		}
 	}
+
+	c.prevIO = currentIO
+	c.prevTime = now
 
 	return metrics, nil
 }

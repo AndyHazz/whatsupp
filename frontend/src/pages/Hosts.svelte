@@ -96,6 +96,14 @@
               CPU Temp: <span class="temp-value">{Math.round(getMetric(h.host, 'temp.cpu') ?? getMetric(h.host, 'temp.cpu_thermal') ?? 0)}&deg;C</span>
             </div>
           {/if}
+          {#if getMetric(h.host, 'battery.charge_pct') != null}
+            {@const chargePct = getMetric(h.host, 'battery.charge_pct')}
+            {@const isCharging = getMetric(h.host, 'battery.charging') === 1}
+            <div class="battery" class:battery-low={chargePct < 10} class:battery-warn={chargePct >= 10 && chargePct < 20}>
+              <span class="battery-icon">{isCharging ? '\u26A1' : '\u{1F50B}'}</span>
+              <span class="battery-value">{Math.round(chargePct)}%</span>
+            </div>
+          {/if}
           {#if h.version}
             <div class="agent-version muted">{h.version}</div>
           {/if}
@@ -153,6 +161,16 @@
     text-align: center;
   }
   .temp-value { color: var(--orange); font-weight: 600; }
+
+  .battery {
+    font-size: 0.85rem;
+    color: var(--fg-muted);
+    text-align: center;
+  }
+  .battery-value { font-weight: 600; color: var(--green); }
+  .battery-warn .battery-value { color: var(--orange); }
+  .battery-low .battery-value { color: var(--red); }
+  .battery-icon { margin-right: 2px; }
 
   .agent-version {
     font-size: 0.75rem;

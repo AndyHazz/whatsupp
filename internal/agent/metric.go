@@ -24,3 +24,4 @@ func DiskMetric(mount, name string) string             { return "disk." + mount 
 func NetMetric(iface, name string) string              { return "net." + iface + "." + name }
 func TempMetric(name string) string                    { return "temp." + name }
 func DockerMetric(container, name string) string       { return "docker." + container + "." + name }
+func BatteryMetric(name string) string                  { return "battery." + name }
