@@ -3,6 +3,8 @@ package hub
 import (
 	"testing"
 	"time"
+
+	"github.com/andyhazz/whatsupp/internal/store"
 )
 
 func TestDownsampler_HourlyAggregation(t *testing.T) {
@@ -62,6 +64,115 @@ func TestDownsampler_Cleanup(t *testing.T) {
 	}
 	if n != 1 {
 		t.Errorf("cleaned up = %d, want 1", n)
+	}
+}
+
+func TestDownsample5Min(t *testing.T) {
+	s := testStore(t)
+
+	base := time.Date(2026, 3, 21, 12, 0, 0, 0, time.UTC)
+
+	// Insert raw metrics spanning 10 minutes
+	for i := 0; i < 10; i++ {
+		ts := base.Add(time.Duration(i) * time.Minute)
+		s.InsertAgentMetricsBatch("host1", ts, []store.Metric{
+			{Name: "cpu.usage_pct", Value: float64(10 + i*10)},
+		})
+	}
+
+	d := NewDownsampler(s, DefaultRetentionConfig())
+	err := d.AggregateAgentMetrics5Min(base, base.Add(10*time.Minute))
+	if err != nil {
+		t.Fatalf("AggregateAgentMetrics5Min error: %v", err)
+	}
+
+	results, _ := s.QueryAgentMetrics5Min("host1", base, base.Add(10*time.Minute), nil)
+	if len(results) != 2 {
+		t.Fatalf("got %d 5-min buckets, want 2", len(results))
+	}
+}
+
+func TestDownsample5Min_MultipleMetrics(t *testing.T) {
+	s := testStore(t)
+
+	base := time.Date(2026, 3, 21, 12, 0, 0, 0, time.UTC)
+	for i := 0; i < 5; i++ {
+		ts := base.Add(time.Duration(i) * time.Minute)
+		s.InsertAgentMetricsBatch("host1", ts, []store.Metric{
+			{Name: "cpu.usage_pct", Value: float64(50 + i)},
+			{Name: "mem.usage_pct", Value: float64(60 + i)},
+		})
+	}
+
+	d := NewDownsampler(s, DefaultRetentionConfig())
+	d.AggregateAgentMetrics5Min(base, base.Add(5*time.Minute))
+
+	results, _ := s.QueryAgentMetrics5Min("host1", base, base.Add(5*time.Minute), nil)
+	if len(results) != 2 { // cpu and mem in one bucket
+		t.Fatalf("got %d results, want 2", len(results))
+	}
+}
+
+func TestDownsample5Min_MultipleHosts(t *testing.T) {
+	s := testStore(t)
+
+	base := time.Date(2026, 3, 21, 12, 0, 0, 0, time.UTC)
+	for i := 0; i < 5; i++ {
+		ts := base.Add(time.Duration(i) * time.Minute)
+		s.InsertAgentMetricsBatch("host1", ts, []store.Metric{{Name: "cpu.usage_pct", Value: 50}})
+		s.InsertAgentMetricsBatch("host2", ts, []store.Metric{{Name: "cpu.usage_pct", Value: 70}})
+	}
+
+	d := NewDownsampler(s, DefaultRetentionConfig())
+	d.AggregateAgentMetrics5Min(base, base.Add(5*time.Minute))
+
+	r1, _ := s.QueryAgentMetrics5Min("host1", base, base.Add(5*time.Minute), nil)
+	r2, _ := s.QueryAgentMetrics5Min("host2", base, base.Add(5*time.Minute), nil)
+	if len(r1) != 1 || len(r2) != 1 {
+		t.Fatalf("expected 1 result per host, got %d and %d", len(r1), len(r2))
+	}
+}
+
+func TestDownsample5Min_Idempotent(t *testing.T) {
+	s := testStore(t)
+
+	base := time.Date(2026, 3, 21, 12, 0, 0, 0, time.UTC)
+	for i := 0; i < 5; i++ {
+		ts := base.Add(time.Duration(i) * time.Minute)
+		s.InsertAgentMetricsBatch("host1", ts, []store.Metric{{Name: "cpu.usage_pct", Value: 50}})
+	}
+
+	d := NewDownsampler(s, DefaultRetentionConfig())
+	d.AggregateAgentMetrics5Min(base, base.Add(5*time.Minute))
+	d.AggregateAgentMetrics5Min(base, base.Add(5*time.Minute)) // second run
+
+	results, _ := s.QueryAgentMetrics5Min("host1", base, base.Add(5*time.Minute), nil)
+	if len(results) != 1 {
+		t.Fatalf("got %d results after second run, want 1 (idempotent)", len(results))
+	}
+}
+
+func TestPurgeRawAgentMetrics(t *testing.T) {
+	s := testStore(t)
+
+	now := time.Now()
+	old := now.Add(-72 * time.Hour)
+
+	s.InsertAgentMetricsBatch("h", old, []store.Metric{{Name: "cpu.usage_pct", Value: 50}})
+	s.InsertAgentMetricsBatch("h", now, []store.Metric{{Name: "cpu.usage_pct", Value: 60}})
+
+	d := NewDownsampler(s, DefaultRetentionConfig())
+	n, err := d.PurgeRawAgentMetrics(now.Add(-48 * time.Hour))
+	if err != nil {
+		t.Fatalf("PurgeRawAgentMetrics error: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("purged = %d, want 1", n)
+	}
+
+	remaining, _ := s.QueryAgentMetricsRaw("h", now.Add(-time.Hour), now.Add(time.Hour), nil)
+	if len(remaining) != 1 {
+		t.Errorf("remaining = %d, want 1", len(remaining))
 	}
 }
 

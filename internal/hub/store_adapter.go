@@ -115,36 +115,91 @@ func (a *StoreAdapter) GetCheckResultsDaily(monitor string, from, to time.Time) 
 // --- HostStore ---
 
 func (a *StoreAdapter) GetAgentHeartbeats() ([]api.AgentHeartbeat, error) {
-	// Agent heartbeats not yet implemented in store
-	return nil, nil
+	hbs, err := a.s.GetAllHeartbeats()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]api.AgentHeartbeat, len(hbs))
+	for i, hb := range hbs {
+		out[i] = api.AgentHeartbeat{Host: hb.Host, LastSeenAt: hb.LastSeenAt}
+	}
+	return out, nil
 }
 
 func (a *StoreAdapter) GetAgentHeartbeat(host string) (*api.AgentHeartbeat, error) {
-	return nil, nil
+	hb, err := a.s.GetHeartbeat(host)
+	if err != nil || hb == nil {
+		return nil, err
+	}
+	return &api.AgentHeartbeat{Host: hb.Host, LastSeenAt: hb.LastSeenAt}, nil
 }
 
 func (a *StoreAdapter) GetAgentMetrics(host string, from, to time.Time, names []string) ([]api.AgentMetric, error) {
-	return nil, nil
+	rows, err := a.s.QueryAgentMetricsRaw(host, from, to, names)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]api.AgentMetric, len(rows))
+	for i, r := range rows {
+		out[i] = api.AgentMetric{
+			Host:       r.Host,
+			Timestamp:  r.Timestamp,
+			MetricName: r.MetricName,
+			Value:      r.Value,
+		}
+	}
+	return out, nil
 }
 
 func (a *StoreAdapter) GetAgentMetrics5Min(host string, from, to time.Time, names []string) ([]api.AgentMetricSummary, error) {
-	return nil, nil
+	rows, err := a.s.QueryAgentMetrics5Min(host, from, to, names)
+	if err != nil {
+		return nil, err
+	}
+	return convertSummaries(rows), nil
 }
 
 func (a *StoreAdapter) GetAgentMetricsHourly(host string, from, to time.Time, names []string) ([]api.AgentMetricSummary, error) {
-	return nil, nil
+	rows, err := a.s.QueryAgentMetricsHourly(host, from, to, names)
+	if err != nil {
+		return nil, err
+	}
+	return convertSummaries(rows), nil
 }
 
 func (a *StoreAdapter) GetAgentMetricsDaily(host string, from, to time.Time, names []string) ([]api.AgentMetricSummary, error) {
-	return nil, nil
+	rows, err := a.s.QueryAgentMetricsDaily(host, from, to, names)
+	if err != nil {
+		return nil, err
+	}
+	return convertSummaries(rows), nil
+}
+
+func convertSummaries(rows []store.AgentMetricSummary) []api.AgentMetricSummary {
+	out := make([]api.AgentMetricSummary, len(rows))
+	for i, r := range rows {
+		out[i] = api.AgentMetricSummary{
+			Host:       r.Host,
+			Bucket:     r.Bucket,
+			MetricName: r.MetricName,
+			Avg:        r.Avg,
+			Min:        r.Min,
+			Max:        r.Max,
+		}
+	}
+	return out
 }
 
 func (a *StoreAdapter) InsertAgentMetrics(host string, timestamp time.Time, metrics []api.AgentMetricPoint) error {
-	return nil
+	storeMetrics := make([]store.Metric, len(metrics))
+	for i, m := range metrics {
+		storeMetrics[i] = store.Metric{Name: m.Name, Value: m.Value}
+	}
+	return a.s.InsertAgentMetricsBatch(host, timestamp, storeMetrics)
 }
 
 func (a *StoreAdapter) UpdateAgentHeartbeat(host string, lastSeenAt time.Time) error {
-	return nil
+	return a.s.UpsertHeartbeat(host, lastSeenAt)
 }
 
 // --- IncidentStore ---

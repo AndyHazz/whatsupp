@@ -83,8 +83,10 @@ func New(cfg *config.Config, configPath string) (*Hub, error) {
 	}
 
 	retention := RetentionConfig{
-		CheckResultsRaw: cfg.Retention.CheckResultsRaw,
-		Hourly:          cfg.Retention.Hourly,
+		CheckResultsRaw:  cfg.Retention.CheckResultsRaw,
+		AgentMetricsRaw:  cfg.Retention.AgentMetricsRaw,
+		AgentMetrics5Min: cfg.Retention.AgentMetrics5Min,
+		Hourly:           cfg.Retention.Hourly,
 	}
 	if retention.CheckResultsRaw == 0 {
 		retention = DefaultRetentionConfig()

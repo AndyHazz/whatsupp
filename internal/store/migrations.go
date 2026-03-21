@@ -58,7 +58,8 @@ CREATE TABLE IF NOT EXISTS agent_metrics_5min (
     metric_name TEXT NOT NULL,
     avg REAL,
     min REAL,
-    max REAL
+    max REAL,
+    UNIQUE(host, bucket, metric_name)
 );
 CREATE INDEX IF NOT EXISTS idx_agent_5min_host_time ON agent_metrics_5min(host, metric_name, bucket);
 
@@ -68,7 +69,8 @@ CREATE TABLE IF NOT EXISTS agent_metrics_hourly (
     metric_name TEXT NOT NULL,
     avg REAL,
     min REAL,
-    max REAL
+    max REAL,
+    UNIQUE(host, hour, metric_name)
 );
 CREATE INDEX IF NOT EXISTS idx_agent_hourly_host_time ON agent_metrics_hourly(host, metric_name, hour);
 
@@ -78,7 +80,8 @@ CREATE TABLE IF NOT EXISTS agent_metrics_daily (
     metric_name TEXT NOT NULL,
     avg REAL,
     min REAL,
-    max REAL
+    max REAL,
+    UNIQUE(host, day, metric_name)
 );
 CREATE INDEX IF NOT EXISTS idx_agent_daily_host_time ON agent_metrics_daily(host, metric_name, day);
 
