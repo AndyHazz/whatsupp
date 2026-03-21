@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/andyhazz/whatsupp/internal/version"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -36,7 +37,10 @@ func NewHandlers(store Store, hub HubState, configPath string) *Handlers {
 // Health handles GET /api/v1/health — public, no auth.
 func (h *Handlers) Health(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	json.NewEncoder(w).Encode(map[string]string{
+		"status":  "ok",
+		"version": version.Version,
+	})
 }
 
 // TestNtfy handles POST /api/v1/test-ntfy — sends a test notification.
@@ -392,6 +396,7 @@ type agentMetricsPayload struct {
 	Host      string             `json:"host"`
 	Timestamp string             `json:"timestamp"` // RFC3339
 	Metrics   []AgentMetricPoint `json:"metrics"`
+	Version   string             `json:"version,omitempty"`
 }
 
 // PostAgentMetrics handles POST /api/v1/agent/metrics.
@@ -425,6 +430,11 @@ func (h *Handlers) PostAgentMetrics(w http.ResponseWriter, r *http.Request) {
 		// Non-fatal — log but don't fail the request
 		_ = err
 	}
+	if payload.Version != "" {
+		if err := h.store.UpdateAgentVersion(payload.Host, payload.Version); err != nil {
+			_ = err
+		}
+	}
 
 	// Broadcast to WebSocket clients
 	if h.wsHub != nil {
@@ -434,6 +444,7 @@ func (h *Handlers) PostAgentMetrics(w http.ResponseWriter, r *http.Request) {
 				"host":      payload.Host,
 				"metrics":   payload.Metrics,
 				"timestamp": ts.Unix(),
+				"version":   payload.Version,
 			},
 		})
 	}

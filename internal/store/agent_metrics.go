@@ -28,6 +28,7 @@ type AgentMetricSummary struct {
 type AgentHeartbeat struct {
 	Host       string `json:"host"`
 	LastSeenAt int64  `json:"last_seen_at"`
+	Version    string `json:"version,omitempty"`
 }
 
 // StaleAgent represents an agent that hasn't checked in recently.
@@ -159,9 +160,9 @@ func (s *Store) UpsertHeartbeat(host string, ts time.Time) error {
 
 // GetHeartbeat returns the heartbeat for a specific host, or nil if not found.
 func (s *Store) GetHeartbeat(host string) (*AgentHeartbeat, error) {
-	row := s.db.QueryRow(`SELECT host, last_seen_at FROM agent_heartbeats WHERE host = ?`, host)
+	row := s.db.QueryRow(`SELECT host, last_seen_at, COALESCE(version, '') FROM agent_heartbeats WHERE host = ?`, host)
 	var hb AgentHeartbeat
-	err := row.Scan(&hb.Host, &hb.LastSeenAt)
+	err := row.Scan(&hb.Host, &hb.LastSeenAt, &hb.Version)
 	if err != nil {
 		return nil, nil
 	}
@@ -170,7 +171,7 @@ func (s *Store) GetHeartbeat(host string) (*AgentHeartbeat, error) {
 
 // GetAllHeartbeats returns all agent heartbeats.
 func (s *Store) GetAllHeartbeats() ([]AgentHeartbeat, error) {
-	rows, err := s.db.Query(`SELECT host, last_seen_at FROM agent_heartbeats ORDER BY host`)
+	rows, err := s.db.Query(`SELECT host, last_seen_at, COALESCE(version, '') FROM agent_heartbeats ORDER BY host`)
 	if err != nil {
 		return nil, err
 	}
@@ -179,12 +180,21 @@ func (s *Store) GetAllHeartbeats() ([]AgentHeartbeat, error) {
 	var results []AgentHeartbeat
 	for rows.Next() {
 		var hb AgentHeartbeat
-		if err := rows.Scan(&hb.Host, &hb.LastSeenAt); err != nil {
+		if err := rows.Scan(&hb.Host, &hb.LastSeenAt, &hb.Version); err != nil {
 			return nil, err
 		}
 		results = append(results, hb)
 	}
 	return results, rows.Err()
+}
+
+// UpdateAgentVersion updates the version field for an agent host.
+func (s *Store) UpdateAgentVersion(host string, version string) error {
+	_, err := s.db.Exec(
+		`UPDATE agent_heartbeats SET version = ? WHERE host = ?`,
+		version, host,
+	)
+	return err
 }
 
 // GetStaleAgents returns agents with last_seen_at before the threshold.

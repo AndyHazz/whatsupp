@@ -92,6 +92,9 @@ func Open(path string) (*Store, error) {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 
+	// Add version column to agent_heartbeats if it doesn't exist
+	db.Exec(`ALTER TABLE agent_heartbeats ADD COLUMN version TEXT DEFAULT ''`)
+
 	return &Store{db: db}, nil
 }
 

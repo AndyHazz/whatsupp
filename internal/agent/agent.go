@@ -5,6 +5,8 @@ import (
 	"log"
 	"sync"
 	"time"
+
+	"github.com/andyhazz/whatsupp/internal/version"
 )
 
 // Agent collects system metrics and pushes them to the hub.
@@ -66,6 +68,7 @@ func (a *Agent) collectAndPush(ctx context.Context) {
 		Host:      a.hostname,
 		Timestamp: time.Now(),
 		Metrics:   metrics,
+		Version:   version.Version,
 	}
 
 	// Try to flush buffered batches first

@@ -121,7 +121,7 @@ func (a *StoreAdapter) GetAgentHeartbeats() ([]api.AgentHeartbeat, error) {
 	}
 	out := make([]api.AgentHeartbeat, len(hbs))
 	for i, hb := range hbs {
-		out[i] = api.AgentHeartbeat{Host: hb.Host, LastSeenAt: hb.LastSeenAt}
+		out[i] = api.AgentHeartbeat{Host: hb.Host, LastSeenAt: hb.LastSeenAt, Version: hb.Version}
 	}
 	return out, nil
 }
@@ -131,7 +131,7 @@ func (a *StoreAdapter) GetAgentHeartbeat(host string) (*api.AgentHeartbeat, erro
 	if err != nil || hb == nil {
 		return nil, err
 	}
-	return &api.AgentHeartbeat{Host: hb.Host, LastSeenAt: hb.LastSeenAt}, nil
+	return &api.AgentHeartbeat{Host: hb.Host, LastSeenAt: hb.LastSeenAt, Version: hb.Version}, nil
 }
 
 func (a *StoreAdapter) GetAgentMetrics(host string, from, to time.Time, names []string) ([]api.AgentMetric, error) {
@@ -200,6 +200,10 @@ func (a *StoreAdapter) InsertAgentMetrics(host string, timestamp time.Time, metr
 
 func (a *StoreAdapter) UpdateAgentHeartbeat(host string, lastSeenAt time.Time) error {
 	return a.s.UpsertHeartbeat(host, lastSeenAt)
+}
+
+func (a *StoreAdapter) UpdateAgentVersion(host string, version string) error {
+	return a.s.UpdateAgentVersion(host, version)
 }
 
 // --- IncidentStore ---

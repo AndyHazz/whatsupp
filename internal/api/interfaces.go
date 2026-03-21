@@ -51,6 +51,7 @@ type HostStore interface {
 	GetAgentMetricsDaily(host string, from, to time.Time, names []string) ([]AgentMetricSummary, error)
 	InsertAgentMetrics(host string, timestamp time.Time, metrics []AgentMetricPoint) error
 	UpdateAgentHeartbeat(host string, lastSeenAt time.Time) error
+	UpdateAgentVersion(host string, version string) error
 }
 
 // IncidentStore provides incident queries.
@@ -129,6 +130,7 @@ type MonitorStatus struct {
 type AgentHeartbeat struct {
 	Host       string `json:"host"`
 	LastSeenAt int64  `json:"last_seen_at"`
+	Version    string `json:"version,omitempty"`
 }
 
 type AgentMetric struct {

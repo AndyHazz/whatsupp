@@ -29,7 +29,8 @@ COPY . .
 # Overwrite any local dist with the freshly built one
 COPY --from=frontend-build /app/frontend/dist /app/internal/web/dist/
 
-RUN CGO_ENABLED=1 go build -o /whatsupp ./cmd/whatsupp
+ARG VERSION=dev
+RUN CGO_ENABLED=1 go build -ldflags="-X github.com/andyhazz/whatsupp/internal/version.Version=${VERSION}" -o /whatsupp ./cmd/whatsupp
 
 # ============================================================
 # Stage 3: Minimal runtime

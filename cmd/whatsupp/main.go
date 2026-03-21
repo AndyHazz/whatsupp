@@ -12,6 +12,7 @@ import (
 	"github.com/andyhazz/whatsupp/internal/agent"
 	"github.com/andyhazz/whatsupp/internal/config"
 	"github.com/andyhazz/whatsupp/internal/hub"
+	"github.com/andyhazz/whatsupp/internal/version"
 )
 
 const defaultConfigPath = "/etc/whatsupp/config.yml"
@@ -24,6 +25,8 @@ func main() {
 	}
 
 	switch os.Args[1] {
+	case "version":
+		fmt.Println(version.Version)
 	case "serve":
 		serve()
 	case "agent":

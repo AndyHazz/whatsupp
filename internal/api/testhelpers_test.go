@@ -124,6 +124,7 @@ func (m *mockStore) UpdateAgentHeartbeat(host string, lastSeenAt time.Time) erro
 	m.heartbeatUpdated = true
 	return nil
 }
+func (m *mockStore) UpdateAgentVersion(host string, version string) error { return nil }
 
 // IncidentStore methods
 func (m *mockStore) GetIncidents(from, to time.Time) ([]Incident, error) { return m.incidents, nil }

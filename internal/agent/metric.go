@@ -13,6 +13,7 @@ type MetricBatch struct {
 	Host      string    `json:"host"`
 	Timestamp time.Time `json:"timestamp"`
 	Metrics   []Metric  `json:"metrics"`
+	Version   string    `json:"version,omitempty"`
 }
 
 // Metric naming convention helpers.

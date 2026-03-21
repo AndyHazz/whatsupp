@@ -111,6 +111,7 @@ func (a *testStoreAdapter) InsertAgentMetrics(host string, timestamp time.Time, 
 func (a *testStoreAdapter) UpdateAgentHeartbeat(host string, lastSeenAt time.Time) error {
 	return nil
 }
+func (a *testStoreAdapter) UpdateAgentVersion(host string, version string) error { return nil }
 func (a *testStoreAdapter) GetIncidents(from, to time.Time) ([]Incident, error) { return nil, nil }
 func (a *testStoreAdapter) GetSecurityScans() ([]SecurityScan, error)           { return nil, nil }
 func (a *testStoreAdapter) GetSecurityBaselines() ([]SecurityBaseline, error)    { return nil, nil }
