@@ -10,13 +10,14 @@ import (
 )
 
 type Config struct {
-    Server    ServerConfig    `yaml:"server"`
-    Auth      AuthConfig      `yaml:"auth"`
-    Monitors  []Monitor       `yaml:"monitors"`
-    Agents    []AgentConfig   `yaml:"agents"`
-    Security  SecurityConfig  `yaml:"security"`
-    Alerting  AlertingConfig  `yaml:"alerting"`
-    Retention RetentionConfig `yaml:"retention"`
+    Server        ServerConfig    `yaml:"server"`
+    Auth          AuthConfig      `yaml:"auth"`
+    Monitors      []Monitor       `yaml:"monitors"`
+    Agents        []AgentConfig   `yaml:"agents"`
+    ScrapeTargets []ScrapeTarget  `yaml:"scrape_targets"`
+    Security      SecurityConfig  `yaml:"security"`
+    Alerting      AlertingConfig  `yaml:"alerting"`
+    Retention     RetentionConfig `yaml:"retention"`
 }
 
 type ServerConfig struct {
