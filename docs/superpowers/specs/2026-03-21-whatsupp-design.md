@@ -10,7 +10,7 @@ WhatsUpp is a lightweight, self-contained network monitoring tool written in Go.
 
 ### Goals
 
-- Replace Uptime Kuma (156MB RAM) and Beszel with a single ~15-20MB Go process
+- Replace Uptime Kuma (156MB RAM) and Beszel with a single Go process (~40-60MB RSS in practice, including SQLite mmap, goroutine stacks, and HTTP buffers)
 - Provide uptime monitoring with response time history, system metrics, and security port scanning
 - Alert via ntfy when things go wrong
 - Serve a Dracula-themed dashboard behind Caddy reverse proxy
@@ -66,7 +66,7 @@ WhatsUpp is a lightweight, self-contained network monitoring tool written in Go.
 | Type | Description | Default Interval |
 |---|---|---|
 | HTTP | GET/HEAD URL, record status code, response time, SSL cert expiry | 60s |
-| Ping | ICMP ping, record RTT (round-trip time), packet loss % | 60s |
+| Ping | ICMP ping (requires `CAP_NET_RAW` — see Deployment), record RTT (round-trip time), packet loss % | 60s |
 | Port | TCP connect to host:port, record success + latency | 120s |
 | Agent | Receive pushed system metrics from whatsupp agents | 30s |
 | Scrape | Pull from Prometheus /metrics endpoint (node-exporter compat) | 30s |
@@ -84,18 +84,28 @@ UP ──(N consecutive failures)──▶ DOWN ──(1 success)──▶ UP
 
 - Failure threshold configurable per monitor (global default: 3)
 - Each check result stored as: (monitor_id, timestamp, status, latency_ms, metadata_json)
+- Status values: `up` or `down` (no intermediate states — keeps the state machine simple)
 - metadata_json holds check-specific data (HTTP status codes, cert expiry, ping packet loss, etc.)
+
+### Agent Staleness Detection
+
+The hub tracks the last-seen timestamp for each registered agent. A scheduled goroutine checks every 60 seconds:
+- If no metrics received for 5 minutes (configurable): mark agent as `lost`, create incident, send ntfy alert
+- When metrics resume: resolve incident, send recovery alert
+- Same deduplication rules as monitor alerts (no spam, reminder after 1 hour)
 
 ### Security Scanner
 
 Full 65535-port TCP connect scan (no raw sockets / CAP_NET_RAW needed):
 
-- Configurable concurrency (default: 500 concurrent connections)
+- Configurable concurrency (default: 200 for remote targets, 500 for localhost)
 - 2-second timeout per port
-- ~4-5 minutes for a full scan
+- ~4-5 minutes for a full scan at 500 concurrency, ~10 minutes at 200
 - Compares results against saved baseline
 - Alerts on new ports appearing or expected ports disappearing
 - Estimated resource usage: ~10MB RAM briefly during scan
+- Multiple targets scanned sequentially (not in parallel) to limit resource usage
+- Schedule uses cron syntax (e.g. `"0 3 * * 0"` = Sunday 3am), not vague "weekly"
 
 ## Agent Metrics
 
@@ -122,11 +132,41 @@ Content-Type: application/json
 {
   "host": "plexypi",
   "timestamp": "2026-03-21T12:00:00Z",
-  "metrics": { ... }
+  "metrics": [
+    {"name": "cpu.usage_pct", "value": 23.5},
+    {"name": "cpu.load_1m", "value": 0.45},
+    {"name": "mem.used_bytes", "value": 1073741824},
+    {"name": "mem.usage_pct", "value": 52.1},
+    {"name": "disk./.usage_pct", "value": 67.3},
+    {"name": "disk./mnt/data.usage_pct", "value": 45.0},
+    {"name": "net.eth0.rx_bytes", "value": 123456789},
+    {"name": "temp.cpu", "value": 52.0},
+    {"name": "docker.plex.cpu_pct", "value": 5.2},
+    {"name": "docker.plex.mem_bytes", "value": 524288000},
+    {"name": "docker.plex.status", "value": 1}
+  ]
 }
 ```
 
+### Metric Naming Convention
+
+Flat dotted names: `{category}.{qualifier}.{metric}`. This maps directly to `agent_metrics.metric_name`:
+
+| Pattern | Examples |
+|---|---|
+| `cpu.*` | `cpu.usage_pct`, `cpu.load_1m`, `cpu.load_5m`, `cpu.core0_pct` |
+| `mem.*` | `mem.used_bytes`, `mem.available_bytes`, `mem.swap_used_bytes`, `mem.usage_pct` |
+| `disk.{mount}.*` | `disk./.usage_pct`, `disk./.read_iops`, `disk./mnt/data.write_bytes` |
+| `net.{iface}.*` | `net.eth0.rx_bytes`, `net.eth0.tx_bytes`, `net.eth0.errors` |
+| `temp.*` | `temp.cpu`, `temp.gpu` |
+| `docker.{name}.*` | `docker.plex.cpu_pct`, `docker.plex.mem_bytes`, `docker.plex.status` (1=running, 0=stopped) |
+
+### Agent Setup
+
+`whatsupp agent init --hub https://andyhazz.duckdns.org:8443 --key <agent-key>` generates `/etc/whatsupp/agent.yml` with hub URL and key. The key must match one defined in the hub's config.
+
 - Agent key generated during setup (`whatsupp agent init`), registered with hub
+- Agent keys stored as SHA-256 hashes in the hub's `hosts` table (plaintext key never stored server-side)
 - Agent buffers up to 5 minutes of metrics locally if hub is unreachable
 - Push model avoids NAT traversal issues (agents behind router, hub on public VPS)
 
@@ -135,7 +175,13 @@ Content-Type: application/json
 Hub can also scrape existing Prometheus node-exporter endpoints:
 
 - Parses Prometheus text exposition format
-- Extracts same metric categories as the native agent
+- Maps well-known node-exporter metrics to the whatsupp naming convention:
+  - `node_cpu_seconds_total` → `cpu.usage_pct` (computed from rate of change)
+  - `node_memory_MemAvailable_bytes` → `mem.available_bytes`
+  - `node_filesystem_avail_bytes` → `disk.{mount}.avail_bytes`
+  - `node_network_receive_bytes_total` → `net.{iface}.rx_bytes`
+  - `node_hwmon_temp_celsius` → `temp.cpu`
+- Unmapped metrics are ignored (node-exporter exposes hundreds; we only need the core set)
 - Allows gradual migration — no need to replace node-exporters immediately
 
 ## Storage
@@ -144,6 +190,14 @@ Hub can also scrape existing Prometheus node-exporter endpoints:
 
 SQLite in WAL mode. Single file, embedded, zero external dependencies.
 
+**Required PRAGMAs:**
+- `PRAGMA journal_mode=WAL` — concurrent reads during writes
+- `PRAGMA busy_timeout=5000` — wait up to 5s on write contention
+- `PRAGMA synchronous=NORMAL` — safe with WAL, better write performance
+- `PRAGMA foreign_keys=ON`
+
+**Backup:** Use SQLite `.backup` API (not filesystem copy) to safely backup while the database is in use. The hub exposes `GET /api/v1/admin/backup` which triggers a `.backup` to a timestamped file.
+
 ### Schema
 
 ```sql
@@ -151,20 +205,33 @@ SQLite in WAL mode. Single file, embedded, zero external dependencies.
 monitors (
   id INTEGER PRIMARY KEY,
   name TEXT NOT NULL,
-  type TEXT NOT NULL,        -- http, ping, port, agent, scrape, security
+  type TEXT NOT NULL,        -- http, ping, port, security
   config_json TEXT NOT NULL,  -- type-specific config
   interval_s INTEGER NOT NULL,
   enabled BOOLEAN DEFAULT 1,
-  failure_threshold INTEGER DEFAULT 3
+  failure_threshold INTEGER DEFAULT 3,
+  source TEXT DEFAULT 'config'  -- 'config' (from YAML, read-only in UI) or 'api' (user-created)
 )
 
 -- Raw check results (retained 1 month)
 check_results (
   monitor_id INTEGER REFERENCES monitors(id),
   timestamp INTEGER NOT NULL,  -- unix epoch
-  status TEXT NOT NULL,         -- up, down, degraded
+  status TEXT NOT NULL,         -- up, down
   latency_ms REAL,
   metadata_json TEXT
+)
+CREATE INDEX idx_check_results_monitor_time ON check_results(monitor_id, timestamp);
+
+-- Agent/scrape hosts
+hosts (
+  id INTEGER PRIMARY KEY,
+  name TEXT UNIQUE NOT NULL,         -- "plexypi", "dietpi"
+  type TEXT NOT NULL,                 -- 'agent' or 'scrape'
+  config_json TEXT,                   -- scrape URL, interval, etc.
+  agent_key_hash TEXT,                -- SHA-256 of agent bearer token (NULL for scrape)
+  last_seen_at INTEGER,               -- unix epoch, updated on each metric push/scrape
+  enabled BOOLEAN DEFAULT 1
 )
 
 -- Hourly summaries (retained 6 months)
@@ -195,11 +262,13 @@ incidents (
 
 -- Raw agent metrics (retained 48 hours)
 agent_metrics (
-  host_id INTEGER,
+  host_id INTEGER REFERENCES hosts(id),
   timestamp INTEGER NOT NULL,
   metric_name TEXT NOT NULL,
   value REAL NOT NULL
 )
+CREATE INDEX idx_agent_metrics_host_time ON agent_metrics(host_id, timestamp);
+CREATE INDEX idx_agent_metrics_name_time ON agent_metrics(host_id, metric_name, timestamp);
 
 -- 5-minute agent metric summaries (retained 3 months)
 agent_metrics_5min (
@@ -313,6 +382,15 @@ Downsampling runs as scheduled goroutines:
 
 WebSocket connection from frontend to hub. Check results broadcast to connected clients — status changes and sparklines update without polling.
 
+**WebSocket auth:** The WS upgrade request at `/api/v1/ws` authenticates via the session cookie (browsers cannot set custom headers on WS upgrade). The session cookie uses `SameSite=Strict`, `HttpOnly`, `Secure` flags.
+
+**WebSocket message format:**
+```json
+{"type": "check_result", "data": {"monitor_id": 1, "status": "up", "latency_ms": 45.2, "timestamp": 1711018800}}
+{"type": "incident", "data": {"id": 5, "monitor_id": 1, "started_at": 1711018800, "cause": "connection refused"}}
+{"type": "agent_metric", "data": {"host_id": 1, "metrics": [{"name": "cpu.usage_pct", "value": 23.5}], "timestamp": 1711018800}}
+```
+
 ### Responsive
 
 Works on mobile for quick status checks. Primarily designed for desktop.
@@ -321,7 +399,7 @@ Works on mobile for quick status checks. Primarily designed for desktop.
 
 ### ntfy Integration
 
-Sole alert channel. Connects to existing ntfy instance at andyhazz.duckdns.org:8444.
+Sole alert channel. Connects to any [ntfy](https://ntfy.sh) instance (self-hosted or ntfy.sh).
 
 ### Alert Types
 
@@ -348,10 +426,10 @@ Sole alert channel. Connects to existing ntfy instance at andyhazz.duckdns.org:8
 alerting:
   default_failure_threshold: 3
   ntfy:
-    url: "https://andyhazz.duckdns.org:8444"
-    topic: "alerts"
-    username: "AndyHazz"
-    password: "${NTFY_PASSWORD}"   # from env var
+    url: "${NTFY_URL}"
+    topic: "${NTFY_TOPIC}"
+    username: "${NTFY_USERNAME}"      # optional, for authenticated ntfy
+    password: "${NTFY_PASSWORD}"
   thresholds:
     ssl_expiry_days: [14, 7, 3, 1]
     disk_usage_pct: 90
@@ -361,7 +439,16 @@ alerting:
 
 ## Configuration
 
-Single YAML config file mounted into the container:
+Single YAML config file mounted into the container.
+
+### YAML vs Database Lifecycle
+
+Monitors and hosts defined in the YAML config are **seeded into the database on first run** and marked with `source='config'`. On subsequent starts:
+- Config-sourced entries are updated if the YAML changed (matched by name)
+- Config-sourced entries are NOT deleted if removed from YAML (prevents accidental data loss — delete via API/UI instead)
+- Config-sourced monitors show as read-only in the Settings UI (edit the YAML to change them)
+- Monitors created via the API/Settings UI are marked `source='api'` and are fully mutable
+- Both types coexist and run identically
 
 ```yaml
 server:
@@ -374,74 +461,61 @@ auth:
   initial_password: "${WHATSUPP_ADMIN_PASSWORD}"
 
 monitors:
-  - name: "Plex"
+  - name: "Web App"
     type: http
-    url: "http://84.18.245.85:32400/identity"
+    url: "https://example.com"
     interval: 60s
     failure_threshold: 3
 
-  - name: "Traefik"
+  - name: "API Server"
     type: http
-    url: "http://192.168.50.5"
+    url: "http://10.0.0.5:8080/health"
     interval: 60s
 
-  - name: "N8N"
-    type: http
-    url: "https://n8n8n8n.duckdns.org"
-    interval: 120s
-
-  - name: "Router WebUI"
-    type: http
-    url: "https://192.168.50.1:8443"
-    interval: 120s
-
-  - name: "Home Connection"
+  - name: "Gateway"
     type: ping
-    host: "192.168.50.1"
+    host: "10.0.0.1"
     interval: 60s
 
-  - name: "WireGuard VPN"
+  - name: "VPN Tunnel"
     type: ping
     host: "10.7.0.2"
     interval: 120s
 
-  - name: "Minecraft"
+  - name: "Game Server"
     type: port
-    host: "andyhazz.duckdns.org"
+    host: "game.example.com"
     port: 25565
     interval: 120s
 
 agents:
-  - name: "plexypi"
-    key: "${AGENT_KEY_PLEXYPI}"
-  - name: "dietpi"
-    key: "${AGENT_KEY_DIETPI}"
+  - name: "server-1"
+    key: "${AGENT_KEY_SERVER1}"
+  - name: "server-2"
+    key: "${AGENT_KEY_SERVER2}"
 
 scrape_targets:
-  - name: "plexypi-node"
-    url: "http://192.168.50.5:9100/metrics"
-    interval: 30s
-  - name: "dietpi-node"
-    url: "http://192.168.50.50:9100/metrics"
+  - name: "server-1-node"
+    url: "http://10.0.0.5:9100/metrics"
     interval: 30s
 
 security:
   targets:
-    - host: "84.18.245.85"
-      schedule: "weekly"
-      scan_concurrency: 500
+    - host: "203.0.113.1"           # your public IP
+      schedule: "0 3 * * 0"          # Sunday 3am
+      scan_concurrency: 200
       timeout: "2s"
-    - host: "145.241.217.231"
-      schedule: "weekly"
+    - host: "198.51.100.1"           # your VPS
+      schedule: "0 4 * * 0"          # Sunday 4am (sequential, after first)
       scan_concurrency: 500
       timeout: "2s"
 
 alerting:
   default_failure_threshold: 3
   ntfy:
-    url: "https://andyhazz.duckdns.org:8444"
-    topic: "alerts"
-    username: "AndyHazz"
+    url: "${NTFY_URL}"               # e.g. https://ntfy.example.com
+    topic: "${NTFY_TOPIC}"
+    username: "${NTFY_USERNAME}"
     password: "${NTFY_PASSWORD}"
   thresholds:
     ssl_expiry_days: [14, 7, 3, 1]
@@ -450,10 +524,10 @@ alerting:
     down_reminder_interval: "1h"
 
 retention:
-  check_results_raw: "720h"       # 1 month
+  check_results_raw: "720h"       # 30 days
   agent_metrics_raw: "48h"
-  agent_metrics_5min: "2160h"     # 3 months
-  hourly: "4320h"                  # 6 months
+  agent_metrics_5min: "2160h"     # 90 days
+  hourly: "4320h"                  # 180 days
   daily: "0"                       # forever
 ```
 
@@ -465,20 +539,24 @@ retention:
 # docker-compose.yml
 services:
   whatsupp:
-    image: ghcr.io/andyhazz/whatsupp:latest
+    image: ghcr.io/andyhazz/whatsupp  # update to your registry:latest
     container_name: whatsupp
     restart: unless-stopped
     command: serve
+    cap_add:
+      - NET_RAW              # required for ICMP ping checks
     volumes:
       - ./config.yml:/etc/whatsupp/config.yml:ro
       - whatsupp-data:/data
-    environment:
-      - WHATSUPP_ADMIN_PASSWORD
-      - NTFY_PASSWORD
-      - AGENT_KEY_PLEXYPI
-      - AGENT_KEY_DIETPI
+    env_file:
+      - .env                  # WHATSUPP_ADMIN_PASSWORD, NTFY_*, AGENT_KEY_*
     networks:
       - proxy-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
 volumes:
   whatsupp-data:
@@ -488,19 +566,19 @@ networks:
     external: true
 ```
 
-Caddy routes `andyhazz.duckdns.org:8443` to `whatsupp:8080`.
+Reverse proxy routes to `whatsupp:8080` (e.g., Caddy, Traefik, nginx).
 
-### Agent (plexypi / dietpi)
+### Agent
 
 ```yaml
 services:
   whatsupp-agent:
-    image: ghcr.io/andyhazz/whatsupp:latest
+    image: ghcr.io/andyhazz/whatsupp  # update to your registry:latest
     container_name: whatsupp-agent
     restart: unless-stopped
     command: agent
     environment:
-      - WHATSUPP_HUB_URL=https://andyhazz.duckdns.org:8443
+      - WHATSUPP_HUB_URL=https://monitor.example.com
       - WHATSUPP_AGENT_KEY=${AGENT_KEY}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro  # for Docker metrics
@@ -508,14 +586,17 @@ services:
     pid: host    # for accurate process/CPU metrics
 ```
 
+**Docker socket security note:** The Docker socket grants read access to container environment variables (which may contain secrets). For hardened deployments, use a read-only Docker socket proxy like `tecnativa/docker-socket-proxy` with only `CONTAINERS=1` enabled. For home/personal use, direct `:ro` mounting is acceptable.
+
 ### Migration Path
 
-1. Deploy whatsupp alongside Uptime Kuma
-2. Verify all monitors report correctly
-3. Update Caddy to point :8443 at whatsupp
-4. Remove Uptime Kuma and Beszel containers
-5. Deploy agents to plexypi and dietpi
-6. Optionally remove node-exporters once agents are confirmed working
+1. Deploy whatsupp alongside existing monitoring (it listens on a different internal port)
+2. Add a temporary reverse proxy route (e.g., `:8448`) pointing to whatsupp for testing
+3. Verify all monitors and dashboards work correctly
+4. Switch the primary route to whatsupp
+5. Remove old monitoring containers (Uptime Kuma, Beszel, etc.)
+6. Deploy agents to monitored hosts
+7. Optionally remove node-exporters once agents are confirmed working
 
 ## API
 
@@ -523,18 +604,22 @@ RESTful JSON API, all endpoints under `/api/v1/`:
 
 ### Public (no auth)
 
-- `POST /api/v1/auth/login` — returns session token
+- `POST /api/v1/auth/login` — sets session cookie (24h expiry, renewed on activity). Rate limited: 5 attempts per minute per IP, lockout for 15 minutes after 10 failures.
+- `POST /api/v1/auth/logout` — clears session
+- `GET /api/v1/health` — healthcheck (for Caddy/Docker healthchecks)
 
 ### Authenticated (session token in cookie or Authorization header)
 
 - `GET /api/v1/monitors` — list all monitors with current status
 - `GET /api/v1/monitors/:id` — monitor detail
-- `GET /api/v1/monitors/:id/results?from=&to=&resolution=` — check results (auto-selects tier)
+- `GET /api/v1/monitors/:id/results?from=&to=` — check results (auto-selects storage tier based on time range: <=48h→raw, <=30d→hourly, >30d→daily)
 - `POST /api/v1/monitors` — create monitor
 - `PUT /api/v1/monitors/:id` — update monitor
 - `DELETE /api/v1/monitors/:id` — delete monitor
 - `GET /api/v1/hosts` — list agent hosts with current metrics
-- `GET /api/v1/hosts/:id/metrics?from=&to=&resolution=` — host metrics (auto-selects tier)
+- `GET /api/v1/hosts/:id` — host detail (name, type, last seen, current top-level metrics)
+- `GET /api/v1/hosts/:id/metrics?from=&to=&names=` — host metrics (auto-selects tier: <=48h→raw, <=7d→5min, <=90d→hourly, >90d→daily). `names` filters by metric name prefix (e.g. `cpu,mem`)
+- `GET /api/v1/admin/backup` — trigger SQLite backup, returns backup file
 - `GET /api/v1/incidents?from=&to=` — incident list
 - `GET /api/v1/security/scans` — recent scan results
 - `GET /api/v1/security/baselines` — current baselines
