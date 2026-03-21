@@ -85,6 +85,9 @@ func NewRouter(cfg RouterConfig) RouterResult {
 			r.Get("/config", h.GetConfig)
 			r.Put("/config", h.PutConfig)
 
+			// Test notifications
+			r.Post("/test-ntfy", h.TestNtfy)
+
 			// Monitors
 			r.Get("/monitors", h.ListMonitors)
 			r.Get("/monitors/{name}", h.GetMonitor)

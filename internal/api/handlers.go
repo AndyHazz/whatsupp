@@ -39,6 +39,20 @@ func (h *Handlers) Health(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
+// TestNtfy handles POST /api/v1/test-ntfy — sends a test notification.
+func (h *Handlers) TestNtfy(w http.ResponseWriter, r *http.Request) {
+	if h.hub == nil {
+		jsonError(w, "hub not available", http.StatusServiceUnavailable)
+		return
+	}
+	if err := h.hub.SendTestNotification(); err != nil {
+		jsonError(w, fmt.Sprintf("notification failed: %v", err), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "sent"})
+}
+
 // ListMonitors handles GET /api/v1/monitors.
 func (h *Handlers) ListMonitors(w http.ResponseWriter, r *http.Request) {
 	statuses := h.hub.MonitorStatuses()

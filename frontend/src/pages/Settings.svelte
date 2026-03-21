@@ -47,8 +47,15 @@
   async function testNtfy() {
     ntfyTesting = true;
     try {
-      await fetch('/api/v1/health');
-      success = 'Test notification sent (check your ntfy topic).';
+      const res = await fetch('/api/v1/test-ntfy', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      success = 'Test notification sent! Check your ntfy topic.';
       setTimeout(() => { success = ''; }, 5000);
     } catch (e) {
       error = 'Failed to send test notification: ' + e.message;

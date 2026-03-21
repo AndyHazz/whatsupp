@@ -154,7 +154,8 @@ func (m *mockHubState) MonitorStatus(name string) (MonitorStatus, bool) {
 	s, ok := m.statuses[name]
 	return s, ok
 }
-func (m *mockHubState) ReloadConfig() error { return nil }
+func (m *mockHubState) ReloadConfig() error         { return nil }
+func (m *mockHubState) SendTestNotification() error  { return nil }
 
 // newMockStore creates an in-memory mock store with basic functionality.
 func newMockStore(t *testing.T) *mockStore {

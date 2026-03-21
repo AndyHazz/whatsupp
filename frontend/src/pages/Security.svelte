@@ -13,11 +13,17 @@
         api.getScans(),
         api.getBaselines(),
       ]);
-      scans = s || [];
-      // Convert baselines array to map by target
+      // Parse JSON port strings into arrays
+      scans = (s || []).map(sc => ({
+        ...sc,
+        open_ports: typeof sc.open_ports_json === 'string' ? JSON.parse(sc.open_ports_json || '[]') : (sc.open_ports_json || []),
+      }));
       baselines = {};
       for (const bl of (b || [])) {
-        baselines[bl.target] = bl;
+        baselines[bl.target] = {
+          ...bl,
+          expected_ports: typeof bl.expected_ports_json === 'string' ? JSON.parse(bl.expected_ports_json || '[]') : (bl.expected_ports_json || []),
+        };
       }
     } catch (e) {
       error = e.message;
@@ -31,9 +37,15 @@
       await api.updateBaseline(target);
       // Refresh data
       const [s, b] = await Promise.all([api.getScans(), api.getBaselines()]);
-      scans = s || [];
+      scans = (s || []).map(sc => ({
+        ...sc,
+        open_ports: typeof sc.open_ports_json === 'string' ? JSON.parse(sc.open_ports_json || '[]') : (sc.open_ports_json || []),
+      }));
       baselines = {};
-      for (const bl of (b || [])) baselines[bl.target] = bl;
+      for (const bl of (b || [])) baselines[bl.target] = {
+        ...bl,
+        expected_ports: typeof bl.expected_ports_json === 'string' ? JSON.parse(bl.expected_ports_json || '[]') : (bl.expected_ports_json || []),
+      };
     } catch (e) {
       error = e.message;
     }

@@ -78,6 +78,8 @@ type HubState interface {
 	MonitorStatus(name string) (MonitorStatus, bool)
 	// ReloadConfig triggers a config reload.
 	ReloadConfig() error
+	// SendTestNotification sends a test alert.
+	SendTestNotification() error
 }
 
 // --- Data types ---
