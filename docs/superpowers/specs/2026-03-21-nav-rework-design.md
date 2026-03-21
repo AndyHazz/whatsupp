@@ -23,16 +23,16 @@ Four clickable tiles in a responsive grid (`repeat(auto-fill, minmax(240px, 1fr)
 
 **Hosts tile** — links to `/hosts`
 - Shows count: "3 hosts reporting"
-- Shows quick summary: highest CPU/RAM from latest metrics
-- Data: `api.getHosts()` → count, plus latest metrics from WebSocket store
+- Shows quick CPU/RAM summary if available, omitted until data arrives
+- Data: `api.getHosts()` → count. For CPU/RAM, subscribe to `onMessage('agent_metric', ...)` and maintain a map of latest values per host. On cold start (no WS data yet), just show the host count — no API call for metrics needed since agent data arrives within 15s
 
 **Security tile** — links to `/security`
 - Shows: "All clear" (green) or "N new ports detected" (orange/red)
-- Data: `api.getScans()` + `api.getBaselines()` → diff new ports across all targets
+- Data: `api.getScans()` + `api.getBaselines()` → for each target, parse `open_ports_json` from scan and `expected_ports_json` from baseline, count ports in scan but not in baseline. Sum across all targets. Same diffing logic as `Security.svelte`'s `getDiff()` function
 
 **Incidents tile** — links to `/incidents`
 - Shows: "No active incidents" (green) or "N ongoing" (red)
-- Data: `api.getIncidents()` → filter where `resolved_at` is null
+- Data: `api.getIncidents()` (no args — backend returns all, which is fine since we only count active). Filter where `resolved_at` is null
 
 ### Recent Activity Feed
 
@@ -57,7 +57,7 @@ The feed subscribes to `onMessage('check_result', ...)` and `onMessage('incident
 
 **Route:** `/monitors`
 
-The current `Overview.svelte` content (uptime cards grid with sparklines, hero stats, DOWN accents) moves here with zero functional changes. The component is renamed from `Overview.svelte` to `Monitors.svelte`.
+The current `Overview.svelte` content (uptime cards grid with sparklines, latency numbers, DOWN accents) moves here with zero functional changes. The component is renamed from `Overview.svelte` to `Monitors.svelte`.
 
 ## 3. Navigation Update
 
@@ -107,9 +107,9 @@ New:
 ```
 
 - Gauges move from the full-width card into the header, aligned right
-- Gauge size shrinks from 80px to 56px for compact fit
+- Pass `size={56}` prop to Gauge components (default is 80px)
 - Memory/disk detail text (`2.1 GB / 4.0 GB`) shown below each gauge in smaller text
-- The `gauges-row` card is removed entirely
+- The `.gauges-row` card is removed entirely
 
 ### Time Range Bar
 
@@ -119,9 +119,10 @@ New slim bar between header and charts:
 [ ─────────────────── 1h  6h  24h  48h  7d  30d  90d  1y ]
 ```
 
-- Full width, card background with subtle border
-- Time range buttons right-aligned
-- Compact padding (8px vertical)
+- Full width, card background (`--bg-card`) with `--border-subtle` and `--shadow-card`
+- Time range buttons right-aligned inside the bar
+- Compact padding (8px 16px)
+- Reuses `TimeRangeSelector` component as-is with the same `selected` and `on:change` props — just relocated into this wrapper div
 
 ### Charts Grid
 
