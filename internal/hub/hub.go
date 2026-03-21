@@ -1,12 +1,16 @@
 package hub
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
+	"sync"
 	"time"
 
 	"github.com/andyhazz/whatsupp/internal/alerting"
+	"github.com/andyhazz/whatsupp/internal/api"
 	"github.com/andyhazz/whatsupp/internal/checks"
 	"github.com/andyhazz/whatsupp/internal/config"
 	"github.com/andyhazz/whatsupp/internal/store"
@@ -15,19 +19,25 @@ import (
 // Hub is the main orchestrator that ties together checks, storage,
 // state management, incidents, alerting, and downsampling.
 type Hub struct {
+	mu              sync.RWMutex
 	cfg             *config.Config
+	configPath      string
 	store           *store.Store
 	alerter         *alerting.NtfyClient
 	scheduler       *Scheduler
 	downsampler     *Downsampler
 	incidentManager *IncidentManager
 	monitorStates   map[string]*MonitorState
+	monitorTypes    map[string]string // monitor name -> type (http, ping, port)
+	lastResults     map[string]checks.Result
 	resultCh        chan checks.Result
 	stopCh          chan struct{}
+	apiServer       *http.Server
+	wsHub           *api.WSHub
 }
 
 // New creates a Hub from config.
-func New(cfg *config.Config) (*Hub, error) {
+func New(cfg *config.Config, configPath string) (*Hub, error) {
 	s, err := store.Open(cfg.Server.DBPath)
 	if err != nil {
 		return nil, fmt.Errorf("open store: %w", err)
@@ -43,14 +53,16 @@ func New(cfg *config.Config) (*Hub, error) {
 
 	resultCh := make(chan checks.Result, 100)
 
-	// Initialize monitor states
+	// Initialize monitor states and type map
 	states := make(map[string]*MonitorState)
+	monTypes := make(map[string]string)
 	for _, m := range cfg.Monitors {
 		threshold := m.FailureThreshold
 		if threshold == 0 {
 			threshold = cfg.Alerting.DefaultFailureThreshold
 		}
 		states[m.Name] = NewMonitorState(m.Name, threshold)
+		monTypes[m.Name] = m.Type
 	}
 
 	// Create scheduler and register checkers
@@ -80,20 +92,28 @@ func New(cfg *config.Config) (*Hub, error) {
 
 	return &Hub{
 		cfg:             cfg,
+		configPath:      configPath,
 		store:           s,
 		alerter:         ntfyClient,
 		scheduler:       sched,
 		downsampler:     NewDownsampler(s, retention),
 		incidentManager: NewIncidentManager(s),
 		monitorStates:   states,
+		monitorTypes:    monTypes,
+		lastResults:     make(map[string]checks.Result),
 		resultCh:        resultCh,
 		stopCh:          make(chan struct{}),
 	}, nil
 }
 
-// Run starts the hub: scheduler, result processor, downsampler.
+// Run starts the hub: scheduler, result processor, downsampler, API server.
 func (h *Hub) Run() error {
 	log.Printf("hub: starting with %d monitors", len(h.cfg.Monitors))
+
+	// Start API server
+	if err := h.startAPI(); err != nil {
+		return fmt.Errorf("start API: %w", err)
+	}
 
 	// Start scheduler
 	h.scheduler.Start()
@@ -115,7 +135,133 @@ func (h *Hub) Close() error {
 	close(h.stopCh)
 	h.scheduler.Stop()
 	h.downsampler.Stop()
+	h.stopAPI(context.Background())
+	if h.wsHub != nil {
+		h.wsHub.Stop()
+	}
 	return h.store.Close()
+}
+
+// startAPI initializes and starts the HTTP API server.
+func (h *Hub) startAPI() error {
+	adapter := NewStoreAdapter(h.store)
+
+	// Ensure initial admin user exists
+	if err := api.EnsureAdminUser(adapter, h.cfg.Auth.InitialUsername, h.cfg.Auth.InitialPassword); err != nil {
+		return fmt.Errorf("ensuring admin user: %w", err)
+	}
+
+	// Build agent key map from config
+	agentKeys := make(map[string]string)
+	for _, agent := range h.cfg.Agents {
+		agentKeys[agent.Name] = agent.Key
+	}
+
+	result := api.NewRouter(api.RouterConfig{
+		Store:      adapter,
+		Hub:        h,
+		ConfigPath: h.configPath,
+		AgentKeys:  agentKeys,
+		BackupDir:  "/data/backups",
+	})
+
+	h.wsHub = result.WSHub
+
+	h.apiServer = &http.Server{
+		Addr:    h.cfg.Server.Listen,
+		Handler: result.Handler,
+	}
+
+	go func() {
+		log.Printf("API server listening on %s", h.cfg.Server.Listen)
+		if err := h.apiServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("API server error: %v", err)
+		}
+	}()
+
+	return nil
+}
+
+// stopAPI gracefully shuts down the HTTP API server.
+func (h *Hub) stopAPI(ctx context.Context) {
+	if h.apiServer != nil {
+		h.apiServer.Shutdown(ctx)
+	}
+}
+
+// --- api.HubState implementation ---
+
+// MonitorStatuses returns the current status of all monitors.
+func (h *Hub) MonitorStatuses() map[string]api.MonitorStatus {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	result := make(map[string]api.MonitorStatus, len(h.monitorStates))
+	for name, ms := range h.monitorStates {
+		status := "unknown"
+		switch ms.Status {
+		case StatusUp:
+			status = "up"
+		case StatusDown:
+			status = "down"
+		}
+		var latencyMs float64
+		var lastCheck int64
+		if r, ok := h.lastResults[name]; ok {
+			latencyMs = r.LatencyMs
+			lastCheck = time.Now().Unix() // approximate
+		}
+		result[name] = api.MonitorStatus{
+			Name:      name,
+			Type:      h.monitorTypes[name],
+			Status:    status,
+			LatencyMs: latencyMs,
+			LastCheck: lastCheck,
+		}
+	}
+	return result
+}
+
+// MonitorStatus returns the current status of a single monitor.
+func (h *Hub) MonitorStatus(name string) (api.MonitorStatus, bool) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	ms, ok := h.monitorStates[name]
+	if !ok {
+		return api.MonitorStatus{}, false
+	}
+	status := "unknown"
+	switch ms.Status {
+	case StatusUp:
+		status = "up"
+	case StatusDown:
+		status = "down"
+	}
+	var latencyMs float64
+	var lastCheck int64
+	if r, ok := h.lastResults[name]; ok {
+		latencyMs = r.LatencyMs
+		lastCheck = time.Now().Unix()
+	}
+	return api.MonitorStatus{
+		Name:      name,
+		Type:      h.monitorTypes[name],
+		Status:    status,
+		LatencyMs: latencyMs,
+		LastCheck: lastCheck,
+	}, true
+}
+
+// ReloadConfig re-reads the YAML config and applies changes.
+func (h *Hub) ReloadConfig() error {
+	cfg, err := config.Load(h.configPath)
+	if err != nil {
+		return err
+	}
+	h.mu.Lock()
+	h.cfg = cfg
+	h.mu.Unlock()
+	log.Printf("hub: config reloaded")
+	return nil
 }
 
 // processResults runs the main result processing loop.
@@ -140,12 +286,16 @@ func (h *Hub) processResult(result checks.Result) {
 	}
 
 	// 2. Run through state machine
+	h.mu.Lock()
 	ms, ok := h.monitorStates[result.Monitor]
 	if !ok {
+		h.mu.Unlock()
 		log.Printf("hub: unknown monitor %q", result.Monitor)
 		return
 	}
 	transition := ms.RecordResult(result)
+	h.lastResults[result.Monitor] = result
+	h.mu.Unlock()
 
 	// 3. Handle incidents
 	inc, err := h.incidentManager.HandleTransition(result.Monitor, transition, now, result.Error)
@@ -173,6 +323,19 @@ func (h *Hub) processResult(result checks.Result) {
 
 	// 5. Check SSL cert expiry for HTTPS monitors (if metadata contains cert info)
 	h.checkSSLExpiry(result)
+
+	// 6. Broadcast to WebSocket clients
+	if h.wsHub != nil {
+		h.wsHub.Broadcast(api.WSMessage{
+			Type: "check_result",
+			Data: map[string]interface{}{
+				"monitor":    result.Monitor,
+				"status":     result.Status,
+				"latency_ms": result.LatencyMs,
+				"timestamp":  now,
+			},
+		})
+	}
 
 	log.Printf("hub: %s status=%s latency=%.1fms transition=%s",
 		result.Monitor, result.Status, result.LatencyMs, transition)

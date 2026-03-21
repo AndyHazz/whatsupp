@@ -40,7 +40,7 @@ func serve() {
 		log.Fatalf("whatsupp: failed to load config: %v", err)
 	}
 
-	h, err := hub.New(cfg)
+	h, err := hub.New(cfg, *configPath)
 	if err != nil {
 		log.Fatalf("whatsupp: failed to create hub: %v", err)
 	}

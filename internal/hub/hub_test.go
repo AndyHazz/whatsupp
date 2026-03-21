@@ -34,6 +34,8 @@ func TestHub_ProcessResult_DownTransition(t *testing.T) {
 		alerter:         ntfyClient,
 		incidentManager: NewIncidentManager(s),
 		monitorStates:   make(map[string]*MonitorState),
+		monitorTypes:    make(map[string]string),
+		lastResults:     make(map[string]checks.Result),
 		cfg:             &config.Config{},
 	}
 	h.monitorStates["Plex"] = NewMonitorState("Plex", 2)
@@ -78,6 +80,8 @@ func TestHub_ProcessResult_Recovery(t *testing.T) {
 		alerter:         ntfyClient,
 		incidentManager: NewIncidentManager(s),
 		monitorStates:   make(map[string]*MonitorState),
+		monitorTypes:    make(map[string]string),
+		lastResults:     make(map[string]checks.Result),
 		cfg:             &config.Config{},
 	}
 	h.monitorStates["Plex"] = NewMonitorState("Plex", 2)
@@ -132,7 +136,7 @@ func TestHub_NewFromConfig(t *testing.T) {
 		},
 	}
 
-	h, err := New(cfg)
+	h, err := New(cfg, "/dev/null")
 	if err != nil {
 		t.Fatalf("New() error: %v", err)
 	}
