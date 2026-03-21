@@ -98,7 +98,7 @@
   {:else if host}
     <div class="header">
       <h1>{host.name}</h1>
-      <TimeRangeSelector bind:selected={rangeSeconds} />
+      <TimeRangeSelector selected={rangeSeconds} on:change={(e) => { rangeSeconds = e.detail; }} />
     </div>
 
     <div class="gauges-row">

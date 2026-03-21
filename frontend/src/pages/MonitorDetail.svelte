@@ -92,7 +92,7 @@
     <div class="chart-section">
       <div class="chart-controls">
         <h2>Response Time</h2>
-        <TimeRangeSelector bind:selected={rangeSeconds} />
+        <TimeRangeSelector selected={rangeSeconds} on:change={(e) => { rangeSeconds = e.detail; }} />
       </div>
       <Chart data={chartData} label="Latency" unit="ms" height={350} />
     </div>

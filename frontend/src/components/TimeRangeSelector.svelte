@@ -1,9 +1,13 @@
 <script>
+  import { createEventDispatcher } from 'svelte';
   import { timeRanges } from '../lib/tiers.js';
-  export let selected = 86400; // default 24h
+
+  export let selected = 86400;
+  const dispatch = createEventDispatcher();
 
   function select(value) {
     selected = value;
+    dispatch('change', value);
   }
 </script>
 
@@ -31,6 +35,7 @@
     padding: 4px 10px;
     border-radius: var(--radius);
     font-size: 0.8rem;
+    cursor: pointer;
     transition: all 0.15s;
   }
   button:hover {
