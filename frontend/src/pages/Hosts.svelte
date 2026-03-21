@@ -6,12 +6,31 @@
   import Gauge from '../components/Gauge.svelte';
 
   let hosts = [];
+  let hostMetrics = {}; // host -> { metricName: value }
   let loading = true;
   let error = '';
 
   onMount(async () => {
     try {
       hosts = await api.getHosts();
+
+      // Fetch latest metrics for each host (last 2 minutes)
+      const now = Math.floor(Date.now() / 1000);
+      const from = now - 120;
+      await Promise.all(hosts.map(async (h) => {
+        try {
+          const metrics = await api.getHostMetrics(h.host, from, now, null);
+          if (metrics && metrics.length > 0) {
+            const latest = {};
+            for (const m of metrics) {
+              // Keep the latest value for each metric name
+              latest[m.metric_name] = m.value;
+            }
+            hostMetrics[h.host] = latest;
+          }
+        } catch { /* no metrics */ }
+      }));
+      hostMetrics = hostMetrics; // trigger reactivity
     } catch (e) {
       error = e.message;
     } finally {
@@ -21,20 +40,18 @@
 
   // Live metric updates
   const unsub = onMessage('agent_metric', (data) => {
-    hosts = hosts.map(h => {
-      if (h.name !== data.host) return h;
-      const updated = { ...h, metrics: { ...h.metrics } };
-      for (const m of (data.metrics || [])) {
-        updated.metrics[m.name] = m.value;
-      }
-      return updated;
-    });
+    if (!data.host) return;
+    if (!hostMetrics[data.host]) hostMetrics[data.host] = {};
+    for (const m of (data.metrics || [])) {
+      hostMetrics[data.host][m.name] = m.value;
+    }
+    hostMetrics = hostMetrics;
   });
 
   onDestroy(unsub);
 
-  function getMetric(host, name) {
-    return host.metrics?.[name] ?? null;
+  function getMetric(hostname, name) {
+    return hostMetrics[hostname]?.[name] ?? null;
   }
 
   function formatLastSeen(ts) {
@@ -57,26 +74,23 @@
     <p class="muted">No hosts reporting. Configure agents or scrape targets in Settings.</p>
   {:else}
     <div class="grid">
-      {#each hosts as host}
-        <a href="/hosts/{encodeURIComponent(host.host)}" use:link class="card">
+      {#each hosts as h}
+        <a href="/hosts/{encodeURIComponent(h.host)}" use:link class="card">
           <div class="card-header">
-            <span class="host-name">{host.host}</span>
-            <span class="last-seen">{formatLastSeen(host.last_seen_at)}</span>
+            <span class="host-name">{h.host}</span>
+            <span class="last-seen">{formatLastSeen(h.last_seen_at)}</span>
           </div>
           <div class="gauges">
-            {#if getMetric(host, 'cpu.usage_pct') != null}
-              <Gauge value={getMetric(host, 'cpu.usage_pct')} label="CPU" />
+            {#if getMetric(h.host, 'cpu.usage_pct') != null}
+              <Gauge value={getMetric(h.host, 'cpu.usage_pct')} label="CPU" />
             {/if}
-            {#if getMetric(host, 'mem.usage_pct') != null}
-              <Gauge value={getMetric(host, 'mem.usage_pct')} label="RAM" />
-            {/if}
-            {#if getMetric(host, 'disk./.usage_pct') != null}
-              <Gauge value={getMetric(host, 'disk./.usage_pct')} label="Disk" />
+            {#if getMetric(h.host, 'mem.usage_pct') != null}
+              <Gauge value={getMetric(h.host, 'mem.usage_pct')} label="RAM" />
             {/if}
           </div>
-          {#if getMetric(host, 'temp.cpu') != null}
+          {#if getMetric(h.host, 'temp.cpu') != null || getMetric(h.host, 'temp.cpu_thermal') != null}
             <div class="temp">
-              CPU Temp: <span class="temp-value">{Math.round(getMetric(host, 'temp.cpu'))}&deg;C</span>
+              CPU Temp: <span class="temp-value">{Math.round(getMetric(h.host, 'temp.cpu') ?? getMetric(h.host, 'temp.cpu_thermal') ?? 0)}&deg;C</span>
             </div>
           {/if}
         </a>
@@ -90,7 +104,7 @@
 
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     gap: var(--gap);
   }
 

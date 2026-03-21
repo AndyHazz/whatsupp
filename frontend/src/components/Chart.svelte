@@ -14,6 +14,22 @@
   let container;
   let chart = null;
 
+  function fmtVal(v) {
+    if (v == null) return '—';
+    if (Math.abs(v) >= 1e9) return (v / 1e9).toFixed(1) + 'G';
+    if (Math.abs(v) >= 1e6) return (v / 1e6).toFixed(1) + 'M';
+    if (Math.abs(v) >= 1e4) return (v / 1e3).toFixed(1) + 'K';
+    if (Math.abs(v) >= 100) return Math.round(v).toString();
+    if (Math.abs(v) >= 1) return v.toFixed(1);
+    if (v === 0) return '0';
+    return v.toFixed(2);
+  }
+
+  function fmtAxis(v) {
+    if (v == null) return '';
+    return fmtVal(v) + unit;
+  }
+
   const opts = () => ({
     width: container?.clientWidth || 800,
     height,
@@ -39,7 +55,8 @@
         grid: { stroke: `${dracula.comment}33`, width: 1 },
         ticks: { stroke: `${dracula.comment}55`, width: 1 },
         font: '11px sans-serif',
-        values: (u, vals) => vals.map(v => v != null ? `${v}${unit}` : ''),
+        values: (u, vals) => vals.map(fmtAxis),
+        size: 60,
       },
     ],
     series: [
@@ -50,14 +67,22 @@
         width: 1.5,
         fill: `${color}${Math.round(fillAlpha * 255).toString(16).padStart(2, '0')}`,
         points: { show: false },
+        value: (u, v) => v != null ? fmtVal(v) + unit : '—',
       },
     ],
+    legend: {
+      live: true,
+    },
   });
 
   function create() {
     if (chart) chart.destroy();
     if (!container || !data[0].length) return;
     chart = new uPlot(opts(), data, container);
+    // Set cursor to last point so legend shows latest value
+    try {
+      chart.setCursor({ left: chart.bbox.width, top: 0 });
+    } catch { /* ignore if not ready */ }
   }
 
   function resize() {
@@ -74,6 +99,10 @@
   afterUpdate(() => {
     if (chart && data[0].length) {
       chart.setData(data);
+      // Update legend to latest value
+      try {
+        chart.setCursor({ left: chart.bbox.width, top: 0 });
+      } catch {}
     } else {
       create();
     }
@@ -102,8 +131,12 @@
     border-radius: var(--radius);
   }
   .chart-wrap :global(.u-legend) {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     color: var(--fg-muted);
+    padding: 4px 0 0;
+  }
+  .chart-wrap :global(.u-legend .u-series td) {
+    padding: 1px 4px;
   }
   .chart-wrap :global(.u-select) {
     background: rgba(189, 147, 249, 0.1);
