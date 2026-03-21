@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/andyhazz/whatsupp/internal/web"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -109,6 +110,9 @@ func NewRouter(cfg RouterConfig) RouterResult {
 			r.Get("/ws", h.HandleWebSocket)
 		})
 	})
+
+	// Serve SPA for all non-API routes (catch-all, registered after API routes)
+	r.Handle("/*", web.Handler())
 
 	return RouterResult{
 		Handler: r,
