@@ -77,7 +77,12 @@
 
 <div class="monitor-detail">
   {#if loading && !monitor}
-    <p class="muted">Loading...</p>
+    <div class="chart-section">
+      <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+        <div class="skel" style="width:40%;height:20px;"></div>
+      </div>
+      <div class="skel" style="width:100%;height:350px;border-radius:var(--radius);"></div>
+    </div>
   {:else if error}
     <p class="error">{error}</p>
   {:else if monitor}
@@ -140,6 +145,8 @@
     padding: 16px;
     border-radius: var(--radius);
     margin-bottom: 24px;
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-card);
   }
   .chart-controls {
     display: flex;
@@ -155,6 +162,8 @@
     background: var(--bg-card);
     padding: 16px;
     border-radius: var(--radius);
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-card);
   }
   .incidents-section h2 {
     font-size: 1.1rem;
@@ -169,13 +178,25 @@
   th {
     text-align: left;
     padding: 8px 12px;
-    border-bottom: 1px solid var(--fg-muted);
+    border-bottom: 1px solid var(--border-subtle);
     color: var(--fg-muted);
     font-weight: 600;
   }
   td {
     padding: 8px 12px;
-    border-bottom: 1px solid rgba(98, 114, 164, 0.2);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  tbody tr {
+    transition: background-color 0.15s ease;
+  }
+  tbody tr:hover {
+    background-color: rgba(248, 248, 242, 0.04);
+  }
+  .skel {
+    background: linear-gradient(90deg, #323543 25%, #3a3d4e 50%, #323543 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 4px;
   }
   .cause { color: var(--red); }
   .muted { color: var(--fg-muted); }
