@@ -44,6 +44,25 @@ func (m *mockStore) CreateUser(username, passwordHash string) error {
 	return nil
 }
 
+func (m *mockStore) GetUserByID(id int64) (*User, error) {
+	for _, u := range m.users {
+		if u.ID == id {
+			return u, nil
+		}
+	}
+	return nil, nil
+}
+
+func (m *mockStore) UpdateUserPassword(id int64, passwordHash string) error {
+	for _, u := range m.users {
+		if u.ID == id {
+			u.PasswordHash = passwordHash
+			return nil
+		}
+	}
+	return nil
+}
+
 func (m *mockStore) UserCount() (int, error) {
 	return len(m.users), nil
 }

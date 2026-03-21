@@ -207,10 +207,11 @@ func (h *Hub) Close() error {
 func (h *Hub) startAPI() error {
 	adapter := NewStoreAdapter(h.store)
 
-	// Ensure initial admin user exists
+	// Ensure initial admin user exists, then clear plaintext password from memory
 	if err := api.EnsureAdminUser(adapter, h.cfg.Auth.InitialUsername, h.cfg.Auth.InitialPassword); err != nil {
 		return fmt.Errorf("ensuring admin user: %w", err)
 	}
+	h.cfg.Auth.InitialPassword = ""
 
 	// Build agent key map from config
 	agentKeys := make(map[string]string)

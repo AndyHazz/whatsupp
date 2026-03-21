@@ -105,6 +105,10 @@ export const api = {
   getBaselines:      ()       => request('GET', '/security/baselines'),
   updateBaseline:    (target) => request('POST', `/security/baselines/${encodeURIComponent(target)}`),
 
+  // Account
+  changePassword: (currentPassword, newPassword) =>
+    request('POST', '/auth/change-password', { current_password: currentPassword, new_password: newPassword }),
+
   // Config
   getConfig:    ()       => request('GET', '/config'),
   updateConfig: (yaml)   => requestRaw('PUT', '/config', yaml, 'application/x-yaml'),

@@ -28,8 +28,20 @@ func (a *StoreAdapter) GetUserByUsername(username string) (*api.User, error) {
 	return &api.User{ID: u.ID, Username: u.Username, PasswordHash: u.PasswordHash}, nil
 }
 
+func (a *StoreAdapter) GetUserByID(id int64) (*api.User, error) {
+	u, err := a.s.GetUserByID(id)
+	if err != nil || u == nil {
+		return nil, err
+	}
+	return &api.User{ID: u.ID, Username: u.Username, PasswordHash: u.PasswordHash}, nil
+}
+
 func (a *StoreAdapter) CreateUser(username, passwordHash string) error {
 	return a.s.CreateUser(username, passwordHash)
+}
+
+func (a *StoreAdapter) UpdateUserPassword(id int64, passwordHash string) error {
+	return a.s.UpdateUserPassword(id, passwordHash)
 }
 
 func (a *StoreAdapter) UserCount() (int, error) {

@@ -391,6 +391,59 @@ func (h *Handlers) Backup(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, destPath)
 }
 
+// changePasswordRequest is the JSON body for POST /auth/change-password.
+type changePasswordRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+}
+
+// ChangePassword handles POST /api/v1/auth/change-password.
+func (h *Handlers) ChangePassword(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+	var req changePasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.CurrentPassword == "" || req.NewPassword == "" {
+		jsonError(w, "current_password and new_password are required", http.StatusBadRequest)
+		return
+	}
+
+	// Get user ID from session context
+	userID, ok := r.Context().Value(userIDKey).(int64)
+	if !ok {
+		jsonError(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	user, err := h.store.GetUserByID(userID)
+	if err != nil || user == nil {
+		jsonError(w, "user not found", http.StatusInternalServerError)
+		return
+	}
+
+	if !CheckPassword(user.PasswordHash, req.CurrentPassword) {
+		jsonError(w, "current password is incorrect", http.StatusUnauthorized)
+		return
+	}
+
+	hash, err := HashPassword(req.NewPassword)
+	if err != nil {
+		jsonError(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	if err := h.store.UpdateUserPassword(user.ID, hash); err != nil {
+		jsonError(w, "failed to update password", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
 // agentMetricsPayload is the JSON body for POST /agent/metrics.
 type agentMetricsPayload struct {
 	Host      string             `json:"host"`

@@ -46,6 +46,18 @@ func (a *testStoreAdapter) GetUserByUsername(username string) (*User, error) {
 	return &User{ID: u.ID, Username: u.Username, PasswordHash: u.PasswordHash}, nil
 }
 
+func (a *testStoreAdapter) GetUserByID(id int64) (*User, error) {
+	u, err := a.s.GetUserByID(id)
+	if err != nil || u == nil {
+		return nil, err
+	}
+	return &User{ID: u.ID, Username: u.Username, PasswordHash: u.PasswordHash}, nil
+}
+
+func (a *testStoreAdapter) UpdateUserPassword(id int64, passwordHash string) error {
+	return a.s.UpdateUserPassword(id, passwordHash)
+}
+
 func (a *testStoreAdapter) UserCount() (int, error) {
 	return a.s.UserCount()
 }

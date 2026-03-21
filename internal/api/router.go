@@ -83,6 +83,9 @@ func NewRouter(cfg RouterConfig) RouterResult {
 		r.Group(func(r chi.Router) {
 			r.Use(authMW)
 
+			// Auth (authenticated)
+			r.Post("/auth/change-password", h.ChangePassword)
+
 			// Config
 			r.Get("/config", h.GetConfig)
 			r.Put("/config", h.PutConfig)

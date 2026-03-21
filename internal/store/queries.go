@@ -342,6 +342,32 @@ func (s *Store) GetUserByUsername(username string) (*User, error) {
 	return &u, nil
 }
 
+// GetUserByID returns the user with the given ID, or nil if not found.
+func (s *Store) GetUserByID(id int64) (*User, error) {
+	row := s.db.QueryRow(
+		`SELECT id, username, password_hash FROM users WHERE id = ?`,
+		id,
+	)
+	var u User
+	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+// UpdateUserPassword updates the password hash for a user.
+func (s *Store) UpdateUserPassword(id int64, passwordHash string) error {
+	_, err := s.db.Exec(
+		`UPDATE users SET password_hash = ? WHERE id = ?`,
+		passwordHash, id,
+	)
+	return err
+}
+
 // UserCount returns the total number of users.
 func (s *Store) UserCount() (int, error) {
 	var count int

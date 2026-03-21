@@ -30,7 +30,9 @@ type SessionStoreRW interface {
 // UserStore is the interface for user persistence.
 type UserStore interface {
 	GetUserByUsername(username string) (*User, error)
+	GetUserByID(id int64) (*User, error)
 	CreateUser(username, passwordHash string) error
+	UpdateUserPassword(id int64, passwordHash string) error
 	UserCount() (int, error)
 }
 

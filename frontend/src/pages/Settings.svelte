@@ -10,6 +10,35 @@
   let success = '';
   let ntfyTesting = false;
 
+  let currentPassword = '';
+  let newPassword = '';
+  let confirmPassword = '';
+  let pwSaving = false;
+  let pwError = '';
+  let pwSuccess = '';
+
+  async function changePassword() {
+    pwError = '';
+    pwSuccess = '';
+    if (newPassword !== confirmPassword) {
+      pwError = 'New passwords do not match.';
+      return;
+    }
+    pwSaving = true;
+    try {
+      await api.changePassword(currentPassword, newPassword);
+      pwSuccess = 'Password updated.';
+      currentPassword = '';
+      newPassword = '';
+      confirmPassword = '';
+      setTimeout(() => { pwSuccess = ''; }, 5000);
+    } catch (e) {
+      pwError = e.message;
+    } finally {
+      pwSaving = false;
+    }
+  }
+
   onMount(async () => {
     try {
       const data = await api.getConfig();
@@ -118,6 +147,35 @@
     </div>
 
     <div class="section">
+      <h2>Change Password</h2>
+      {#if pwError}
+        <div class="msg error-msg">{pwError}</div>
+      {/if}
+      {#if pwSuccess}
+        <div class="msg success-msg">{pwSuccess}</div>
+      {/if}
+      <form class="pw-form" on:submit|preventDefault={changePassword}>
+        <label>
+          Current password
+          <input type="password" bind:value={currentPassword} autocomplete="current-password" required />
+        </label>
+        <label>
+          New password
+          <input type="password" bind:value={newPassword} autocomplete="new-password" required />
+        </label>
+        <label>
+          Confirm new password
+          <input type="password" bind:value={confirmPassword} autocomplete="new-password" required />
+        </label>
+        <div class="actions">
+          <button class="btn-primary" type="submit" disabled={pwSaving || !currentPassword || !newPassword || !confirmPassword}>
+            {pwSaving ? 'Updating...' : 'Update Password'}
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <div class="section">
       <h2>Notifications</h2>
       <button class="btn-secondary" on:click={testNtfy} disabled={ntfyTesting}>
         {ntfyTesting ? 'Sending...' : 'Send Test ntfy Notification'}
@@ -210,5 +268,22 @@
   }
   .error-msg { background: rgba(255, 85, 85, 0.12); color: var(--red); }
   .success-msg { background: rgba(80, 250, 123, 0.12); color: var(--green); }
+
+  .pw-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 360px;
+  }
+  .pw-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.85rem;
+    color: var(--fg-muted);
+  }
+  .pw-form input {
+    font-size: 0.9rem;
+  }
 
 </style>
