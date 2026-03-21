@@ -11,19 +11,57 @@
     { path: '/settings',  label: 'Settings',   icon: '&#9881;' },
   ];
 
-  let sidebarOpen = true;
+  let sidebarOpen = false;
+
+  function closeSidebar() {
+    sidebarOpen = false;
+  }
+
+  function navClick(e) {
+    // Close sidebar on mobile after navigation
+    if (window.innerWidth <= 768) {
+      sidebarOpen = false;
+    }
+  }
 </script>
 
-<div class="layout" class:collapsed={!sidebarOpen}>
-  <aside class="sidebar">
+<div class="layout">
+  <!-- Mobile top bar -->
+  <header class="topbar">
+    <button class="menu-btn" on:click={() => sidebarOpen = !sidebarOpen}>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+    <a href="/" use:link class="topbar-logo">
+      <svg class="logo-icon" viewBox="0 0 64 64" width="28" height="28">
+        <rect width="64" height="64" rx="14" fill="#282a36"/>
+        <path d="M32 10 L54 34 L43 34 L43 54 L21 54 L21 34 L10 34 Z" fill="#50fa7b" stroke="#44475a" stroke-width="1.5" stroke-linejoin="round"/>
+      </svg>
+      <span>WhatsUpp</span>
+    </a>
+  </header>
+
+  <!-- Overlay for mobile -->
+  {#if sidebarOpen}
+    <div class="overlay" on:click={closeSidebar}></div>
+  {/if}
+
+  <aside class="sidebar" class:open={sidebarOpen}>
     <div class="logo">
-      <a href="/" use:link>
+      <a href="/" use:link on:click={navClick}>
+        <svg class="logo-icon" viewBox="0 0 64 64" width="32" height="32">
+          <rect width="64" height="64" rx="14" fill="#282a36"/>
+          <path d="M32 10 L54 34 L43 34 L43 54 L21 54 L21 34 L10 34 Z" fill="#50fa7b" stroke="#44475a" stroke-width="1.5" stroke-linejoin="round"/>
+        </svg>
         <h2>WhatsUpp</h2>
       </a>
     </div>
     <nav>
       {#each navItems as item}
-        <a href={item.path} use:link class="nav-item">
+        <a href={item.path} use:link class="nav-item" on:click={navClick}>
           <span class="nav-icon">{@html item.icon}</span>
           <span class="nav-label">{item.label}</span>
         </a>
@@ -50,6 +88,16 @@
     min-height: 100vh;
   }
 
+  /* ── Top bar (mobile only) ────────────── */
+  .topbar {
+    display: none;
+  }
+
+  .overlay {
+    display: none;
+  }
+
+  /* ── Sidebar ──────────────────────────── */
   .sidebar {
     background: var(--bg-card);
     display: flex;
@@ -69,10 +117,16 @@
   }
   .logo a {
     text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
   .logo h2 {
     color: var(--purple);
     font-size: 1.4rem;
+  }
+  .logo-icon {
+    flex-shrink: 0;
   }
 
   nav {
@@ -141,6 +195,7 @@
     border-radius: var(--radius);
     font-size: 0.85rem;
     width: 100%;
+    cursor: pointer;
   }
   .logout-btn:hover {
     border-color: var(--red);
@@ -152,13 +207,63 @@
     overflow-x: hidden;
   }
 
-  /* Responsive: collapse sidebar on small screens */
+  /* ── Mobile ───────────────────────────── */
   @media (max-width: 768px) {
     .layout {
       grid-template-columns: 1fr;
+      grid-template-rows: auto 1fr;
     }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--fg-muted);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .topbar-logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+      color: var(--purple);
+      font-weight: 700;
+      font-size: 1.1rem;
+    }
+    .menu-btn {
+      background: none;
+      border: none;
+      color: var(--fg);
+      padding: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+    }
+
     .sidebar {
-      display: none;
+      position: fixed;
+      top: 0;
+      left: -280px;
+      width: 260px;
+      height: 100vh;
+      z-index: 200;
+      transition: left 0.25s ease;
+      border-right: 1px solid var(--fg-muted);
+    }
+    .sidebar.open {
+      left: 0;
+    }
+
+    .overlay {
+      display: block;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 150;
     }
   }
 </style>
