@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { api } from '../lib/api.js';
+  import Skeleton from '../components/Skeleton.svelte';
 
   let scans = [];
   let baselines = {};
@@ -76,7 +77,7 @@
   <h1>Security</h1>
 
   {#if loading}
-    <p class="muted">Loading scan results...</p>
+    <Skeleton variant="card" count={2} />
   {:else if error}
     <p class="error">{error}</p>
   {:else if scans.length === 0}
@@ -145,6 +146,8 @@
     padding: 16px;
     border-radius: var(--radius);
     margin-bottom: var(--gap);
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-card);
   }
   .scan-header {
     display: flex;
@@ -202,7 +205,7 @@
     font-weight: 600;
     margin-top: 8px;
   }
-  .accept-btn:hover { opacity: 0.9; }
+  .accept-btn:hover { filter: brightness(1.1); }
 
   .baseline-match {
     color: var(--green);
