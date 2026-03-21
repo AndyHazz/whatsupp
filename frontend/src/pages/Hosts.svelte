@@ -96,6 +96,9 @@
               CPU Temp: <span class="temp-value">{Math.round(getMetric(h.host, 'temp.cpu') ?? getMetric(h.host, 'temp.cpu_thermal') ?? 0)}&deg;C</span>
             </div>
           {/if}
+          {#if h.version}
+            <div class="agent-version muted">{h.version}</div>
+          {/if}
         </a>
       {/each}
     </div>
@@ -151,6 +154,11 @@
   }
   .temp-value { color: var(--orange); font-weight: 600; }
 
+  .agent-version {
+    font-size: 0.75rem;
+    text-align: center;
+    margin-top: 4px;
+  }
   .muted { color: var(--fg-muted); }
   .error { color: var(--red); }
 </style>

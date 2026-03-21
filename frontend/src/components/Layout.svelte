@@ -1,7 +1,18 @@
 <script>
+  import { onMount } from 'svelte';
   import { link } from '../lib/router.js';
   import { logout } from '../lib/auth.js';
   import { wsConnected } from '../lib/ws.js';
+  import { api } from '../lib/api.js';
+
+  let serverVersion = '';
+
+  onMount(async () => {
+    try {
+      const h = await api.getHealth();
+      serverVersion = h.version || '';
+    } catch {}
+  });
 
   const navItems = [
     { path: '/',          label: 'Overview',   icon: '&#9673;' },
@@ -72,6 +83,9 @@
       <div class="ws-status" class:connected={$wsConnected}>
         <span class="ws-dot"></span>
         {$wsConnected ? 'Live' : 'Disconnected'}
+        {#if serverVersion}
+          <span class="version">{serverVersion}</span>
+        {/if}
       </div>
       <button class="logout-btn" on:click={logout}>Sign Out</button>
     </div>
@@ -187,6 +201,11 @@
   }
   .ws-status.connected .ws-dot {
     background: var(--green);
+  }
+  .version {
+    margin-left: auto;
+    font-size: 0.7rem;
+    opacity: 0.7;
   }
 
   .logout-btn {
