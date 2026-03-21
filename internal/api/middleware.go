@@ -2,10 +2,8 @@ package api
 
 import (
 	"context"
-	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -48,7 +46,7 @@ func NewAuthMiddleware(store SessionStore) func(http.Handler) http.Handler {
 }
 
 // AgentKeyAuth validates agent bearer tokens.
-// agentKeys is a map of host name -> SHA-256 hash of the agent key.
+// agentKeys is a map of host name -> plain-text agent key.
 func AgentKeyAuth(agentKeys map[string]string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -59,13 +57,10 @@ func AgentKeyAuth(agentKeys map[string]string) func(http.Handler) http.Handler {
 			}
 			token := strings.TrimPrefix(auth, "Bearer ")
 
-			// Hash the provided token and compare against stored hashes
-			providedHash := sha256.Sum256([]byte(token))
-			providedHex := fmt.Sprintf("%x", providedHash)
-
+			// Compare provided token against stored keys using constant-time comparison
 			valid := false
-			for _, storedHash := range agentKeys {
-				if subtle.ConstantTimeCompare([]byte(providedHex), []byte(storedHash)) == 1 {
+			for _, storedKey := range agentKeys {
+				if subtle.ConstantTimeCompare([]byte(token), []byte(storedKey)) == 1 {
 					valid = true
 					break
 				}
