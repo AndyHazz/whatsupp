@@ -10,6 +10,7 @@
   export let color = dracula.cyan;
   export let height = 300;
   export let fillAlpha = 0.1;
+  export let bands = []; // array of { from: unixTs, to: unixTs } for downtime periods
 
   let container;
   let chart = null;
@@ -28,6 +29,32 @@
   function fmtAxis(v) {
     if (v == null) return '';
     return fmtVal(v) + unit;
+  }
+
+  function downtimeBandsPlugin(bands) {
+    return {
+      hooks: {
+        draw: [
+          (u) => {
+            const ctx = u.ctx;
+            const { left, top, width, height } = u.bbox;
+
+            ctx.save();
+            ctx.fillStyle = 'rgba(255, 85, 85, 0.12)';
+
+            for (const band of bands) {
+              const x0 = Math.max(u.valToPos(band.from, 'x', true), left);
+              const x1 = Math.min(u.valToPos(band.to, 'x', true), left + width);
+              if (x1 > x0) {
+                ctx.fillRect(x0, top, x1 - x0, height);
+              }
+            }
+
+            ctx.restore();
+          },
+        ],
+      },
+    };
   }
 
   const opts = () => ({
@@ -91,6 +118,7 @@
     legend: {
       live: true,
     },
+    plugins: bands.length > 0 ? [downtimeBandsPlugin(bands)] : [],
   });
 
   function create() {
