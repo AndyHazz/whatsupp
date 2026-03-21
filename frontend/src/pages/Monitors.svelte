@@ -13,10 +13,16 @@
 
   // Map of monitor name -> recent latency values for sparkline
   let sparklines = {};
+  let viewMode = 'cards'; // 'cards' | 'list'
 
   onMount(async () => {
     try {
-      monitors = (await api.getMonitors()).sort((a, b) => a.name.localeCompare(b.name));
+      monitors = (await api.getMonitors()).sort((a, b) => {
+        // DOWN monitors first, then alphabetical
+        if (a.status === 'down' && b.status !== 'down') return -1;
+        if (a.status !== 'down' && b.status === 'down') return 1;
+        return a.name.localeCompare(b.name);
+      });
       // Fetch last 1h of results for each monitor for sparklines
       const now = Math.floor(Date.now() / 1000);
       const oneHourAgo = now - 3600;
@@ -43,6 +49,12 @@
       }
       return m;
     });
+    // Re-sort: DOWN first, then alphabetical
+    monitors = monitors.sort((a, b) => {
+      if (a.status === 'down' && b.status !== 'down') return -1;
+      if (a.status !== 'down' && b.status === 'down') return 1;
+      return a.name.localeCompare(b.name);
+    });
     // Append to sparkline
     if (sparklines[data.monitor] && data.latency_ms != null) {
       sparklines[data.monitor] = [...sparklines[data.monitor].slice(-59), data.latency_ms];
@@ -53,7 +65,17 @@
 </script>
 
 <div class="monitors">
-  <h1>Monitors</h1>
+  <div class="page-header">
+    <h1>Monitors</h1>
+    <div class="view-toggle">
+      <button class:active={viewMode === 'cards'} on:click={() => viewMode = 'cards'} title="Card view">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+      </button>
+      <button class:active={viewMode === 'list'} on:click={() => viewMode = 'list'} title="List view">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="2" width="14" height="2.5" rx="1"/><rect x="1" y="6.75" width="14" height="2.5" rx="1"/><rect x="1" y="11.5" width="14" height="2.5" rx="1"/></svg>
+      </button>
+    </div>
+  </div>
 
   {#if loading}
   <div class="grid">
@@ -64,6 +86,7 @@
   {:else if monitors.length === 0}
     <p class="muted">No monitors configured. Add monitors in Settings.</p>
   {:else}
+    {#if viewMode === 'cards'}
     <div class="grid">
       {#each monitors as m}
         <a href="/monitors/{encodeURIComponent(m.name)}" use:link class="card" class:down={m.status === 'down'}>
@@ -90,12 +113,101 @@
         </a>
       {/each}
     </div>
+    {:else}
+    <div class="list">
+      {#each monitors as m}
+        <a href="/monitors/{encodeURIComponent(m.name)}" use:link class="list-row" class:down={m.status === 'down'}>
+          <StatusBadge status={m.status} />
+          <span class="list-name">{m.name}</span>
+          <span class="list-latency">{m.latency_ms != null ? Math.round(m.latency_ms) + 'ms' : '—'}</span>
+          <span class="list-uptime" class:good={m.uptime_pct >= 99} class:warn={m.uptime_pct < 99 && m.uptime_pct >= 95} class:bad={m.uptime_pct < 95}>
+            {m.uptime_pct != null ? m.uptime_pct.toFixed(1) + '%' : '—'}
+          </span>
+          <span class="list-type muted">{m.type}</span>
+        </a>
+      {/each}
+    </div>
+    {/if}
   {/if}
 </div>
 
 <style>
-  .monitors h1 {
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: var(--gap);
+  }
+  .page-header h1 { margin-bottom: 0; }
+
+  .view-toggle {
+    display: flex;
+    gap: 2px;
+  }
+  .view-toggle button {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    color: var(--fg-muted);
+    padding: 6px 8px;
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+  }
+  .view-toggle button.active {
+    background: var(--purple);
+    border-color: var(--purple);
+    color: var(--bg);
+  }
+
+  .list {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+  }
+  .list-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    text-decoration: none;
+    color: var(--fg);
+    border-bottom: 1px solid var(--border-subtle);
+    transition: background-color 0.15s ease;
+  }
+  .list-row:last-child { border-bottom: none; }
+  .list-row:hover {
+    background-color: rgba(248, 248, 242, 0.04);
+    text-decoration: none;
+  }
+  .list-row.down {
+    border-left: 3px solid var(--red);
+  }
+  .list-name {
+    font-weight: 600;
+    flex: 1;
+  }
+  .list-latency {
+    color: var(--cyan);
+    font-weight: 600;
+    min-width: 60px;
+    text-align: right;
+  }
+  .list-uptime {
+    min-width: 50px;
+    text-align: right;
+  }
+  .list-uptime.good { color: var(--green); }
+  .list-uptime.warn { color: var(--orange); }
+  .list-uptime.bad { color: var(--red); }
+  .list-type {
+    min-width: 40px;
+    text-align: right;
+    font-size: 0.8rem;
+    text-transform: uppercase;
   }
 
   .grid {
