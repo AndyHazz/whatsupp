@@ -99,11 +99,11 @@
 
   /* ── Sidebar ──────────────────────────── */
   .sidebar {
-    background: var(--bg-card);
+    background: #22232e;
     display: flex;
     flex-direction: column;
     padding: 16px 0;
-    border-right: 1px solid var(--fg-muted);
+    border-right: 1px solid var(--border-subtle);
     position: sticky;
     top: 0;
     height: 100vh;
@@ -112,7 +112,7 @@
 
   .logo {
     padding: 0 20px 20px;
-    border-bottom: 1px solid var(--fg-muted);
+    border-bottom: 1px solid var(--border-subtle);
     margin-bottom: 8px;
   }
   .logo a {
@@ -146,11 +146,12 @@
     color: var(--fg);
     text-decoration: none;
     font-size: 0.95rem;
-    transition: background 0.15s;
+    transition: background 0.15s ease, color 0.15s ease;
   }
   .nav-item:hover {
     background: rgba(248, 248, 242, 0.08);
     text-decoration: none;
+    color: var(--fg);
   }
 
   .nav-icon {
@@ -161,7 +162,7 @@
 
   .sidebar-footer {
     padding: 12px 16px;
-    border-top: 1px solid var(--fg-muted);
+    border-top: 1px solid var(--border-subtle);
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -200,6 +201,7 @@
   .logout-btn:hover {
     border-color: var(--red);
     color: var(--red);
+    background: rgba(255, 85, 85, 0.08);
   }
 
   .content {
@@ -220,7 +222,7 @@
       gap: 12px;
       padding: 10px 16px;
       background: var(--bg-card);
-      border-bottom: 1px solid var(--fg-muted);
+      border-bottom: 1px solid var(--border-subtle);
       position: sticky;
       top: 0;
       z-index: 100;
@@ -252,7 +254,7 @@
       height: 100vh;
       z-index: 200;
       transition: left 0.25s ease;
-      border-right: 1px solid var(--fg-muted);
+      border-right: 1px solid var(--border-subtle);
     }
     .sidebar.open {
       left: 0;
