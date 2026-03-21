@@ -109,9 +109,40 @@ func New(cfg *config.Config, configPath string) (*Hub, error) {
 	}, nil
 }
 
+// resolveStaleIncidents resolves any open incidents for monitors that no longer exist
+// or were fixed by config changes (e.g. insecure_skip_verify, HTTP status tolerance).
+func (h *Hub) resolveStaleIncidents() {
+	now := time.Now().Unix()
+	// Get all open incidents and resolve ones whose monitors are currently UP or removed
+	incidents, err := h.store.GetIncidents(0, now+1)
+	if err != nil {
+		log.Printf("hub: resolve stale incidents error: %v", err)
+		return
+	}
+	for _, inc := range incidents {
+		if inc.ResolvedAt != nil {
+			continue // already resolved
+		}
+		// Resolve if monitor no longer exists or is UP
+		h.mu.RLock()
+		ms, exists := h.monitorStates[inc.Monitor]
+		h.mu.RUnlock()
+		if !exists || ms.Status == StatusUp {
+			if err := h.store.ResolveIncident(inc.ID, now); err != nil {
+				log.Printf("hub: resolve stale incident %d error: %v", inc.ID, err)
+			} else {
+				log.Printf("hub: resolved stale incident #%d for %s", inc.ID, inc.Monitor)
+			}
+		}
+	}
+}
+
 // Run starts the hub: scheduler, result processor, downsampler, API server.
 func (h *Hub) Run() error {
 	log.Printf("hub: starting with %d monitors", len(h.cfg.Monitors))
+
+	// Resolve any stale incidents from previous runs
+	h.resolveStaleIncidents()
 
 	// Start API server
 	if err := h.startAPI(); err != nil {
