@@ -163,10 +163,10 @@ Flat dotted names: `{category}.{qualifier}.{metric}`. This maps directly to `age
 
 ### Agent Setup
 
-`whatsupp agent init --hub https://andyhazz.duckdns.org:8443 --key <agent-key>` generates `/etc/whatsupp/agent.yml` with hub URL and key. The key must match one defined in the hub's config.
+`whatsupp agent init --hub https://monitor.example.com --key <agent-key>` generates `/etc/whatsupp/agent.yml` with hub URL and key. The key must match one defined in the hub's config.
 
 - Agent key generated during setup (`whatsupp agent init`), registered with hub
-- Agent keys stored as SHA-256 hashes in the hub's `hosts` table (plaintext key never stored server-side)
+- Agent keys stored as SHA-256 hashes in the YAML (hub hashes the key on first write via the Settings UI; plaintext key shown once during setup, then discarded)
 - Agent buffers up to 5 minutes of metrics locally if hub is unreachable
 - Push model avoids NAT traversal issues (agents behind router, hub on public VPS)
 
@@ -200,44 +200,23 @@ SQLite in WAL mode. Single file, embedded, zero external dependencies.
 
 ### Schema
 
-```sql
--- Monitor definitions
-monitors (
-  id INTEGER PRIMARY KEY,
-  name TEXT NOT NULL,
-  type TEXT NOT NULL,        -- http, ping, port, security
-  config_json TEXT NOT NULL,  -- type-specific config
-  interval_s INTEGER NOT NULL,
-  enabled BOOLEAN DEFAULT 1,
-  failure_threshold INTEGER DEFAULT 3,
-  source TEXT DEFAULT 'config'  -- 'config' (from YAML, read-only in UI) or 'api' (user-created)
-)
+No monitor or host config is stored in the database — the YAML is the sole source. SQLite stores only time-series data, incidents, scans, and auth. Monitor and host **names** (from YAML) are used as keys.
 
+```sql
 -- Raw check results (retained 1 month)
 check_results (
-  monitor_id INTEGER REFERENCES monitors(id),
-  timestamp INTEGER NOT NULL,  -- unix epoch
-  status TEXT NOT NULL,         -- up, down
+  monitor TEXT NOT NULL,           -- monitor name from YAML (e.g. "Plex")
+  timestamp INTEGER NOT NULL,      -- unix epoch
+  status TEXT NOT NULL,             -- up, down
   latency_ms REAL,
   metadata_json TEXT
 )
-CREATE INDEX idx_check_results_monitor_time ON check_results(monitor_id, timestamp);
+CREATE INDEX idx_check_results_monitor_time ON check_results(monitor, timestamp);
 
--- Agent/scrape hosts
-hosts (
-  id INTEGER PRIMARY KEY,
-  name TEXT UNIQUE NOT NULL,         -- "plexypi", "dietpi"
-  type TEXT NOT NULL,                 -- 'agent' or 'scrape'
-  config_json TEXT,                   -- scrape URL, interval, etc.
-  agent_key_hash TEXT,                -- SHA-256 of agent bearer token (NULL for scrape)
-  last_seen_at INTEGER,               -- unix epoch, updated on each metric push/scrape
-  enabled BOOLEAN DEFAULT 1
-)
-
--- Hourly summaries (retained 6 months)
+-- Hourly check summaries (retained 6 months)
 check_results_hourly (
-  monitor_id INTEGER,
-  hour INTEGER,              -- unix epoch truncated to hour
+  monitor TEXT NOT NULL,
+  hour INTEGER NOT NULL,           -- unix epoch truncated to hour
   avg_latency REAL,
   min_latency REAL,
   max_latency REAL,
@@ -245,51 +224,67 @@ check_results_hourly (
   fail_count INTEGER,
   uptime_pct REAL
 )
+CREATE INDEX idx_check_hourly_monitor_time ON check_results_hourly(monitor, hour);
 
--- Daily summaries (retained forever)
+-- Daily check summaries (retained forever)
 check_results_daily (
-  -- same columns as hourly, truncated to day
+  monitor TEXT NOT NULL,
+  day INTEGER NOT NULL,            -- unix epoch truncated to day
+  avg_latency REAL,
+  min_latency REAL,
+  max_latency REAL,
+  success_count INTEGER,
+  fail_count INTEGER,
+  uptime_pct REAL
 )
+CREATE INDEX idx_check_daily_monitor_time ON check_results_daily(monitor, day);
 
 -- Incidents
 incidents (
   id INTEGER PRIMARY KEY,
-  monitor_id INTEGER REFERENCES monitors(id),
+  monitor TEXT NOT NULL,            -- monitor name from YAML
   started_at INTEGER NOT NULL,
   resolved_at INTEGER,
   cause TEXT
 )
+CREATE INDEX idx_incidents_monitor ON incidents(monitor, started_at);
 
 -- Raw agent metrics (retained 48 hours)
 agent_metrics (
-  host_id INTEGER REFERENCES hosts(id),
+  host TEXT NOT NULL,               -- host name from YAML (e.g. "plexypi")
   timestamp INTEGER NOT NULL,
   metric_name TEXT NOT NULL,
   value REAL NOT NULL
 )
-CREATE INDEX idx_agent_metrics_host_time ON agent_metrics(host_id, timestamp);
-CREATE INDEX idx_agent_metrics_name_time ON agent_metrics(host_id, metric_name, timestamp);
+CREATE INDEX idx_agent_metrics_host_time ON agent_metrics(host, timestamp);
+CREATE INDEX idx_agent_metrics_name_time ON agent_metrics(host, metric_name, timestamp);
 
 -- 5-minute agent metric summaries (retained 3 months)
 agent_metrics_5min (
-  host_id INTEGER,
-  bucket INTEGER,            -- unix epoch truncated to 5 min
-  metric_name TEXT,
+  host TEXT NOT NULL,
+  bucket INTEGER NOT NULL,         -- unix epoch truncated to 5 min
+  metric_name TEXT NOT NULL,
   avg REAL, min REAL, max REAL
 )
+CREATE INDEX idx_agent_5min_host_time ON agent_metrics_5min(host, metric_name, bucket);
 
 -- Hourly agent metric summaries (retained 6 months)
 agent_metrics_hourly (
-  host_id INTEGER,
-  hour INTEGER,
-  metric_name TEXT,
+  host TEXT NOT NULL,
+  hour INTEGER NOT NULL,
+  metric_name TEXT NOT NULL,
   avg REAL, min REAL, max REAL
 )
+CREATE INDEX idx_agent_hourly_host_time ON agent_metrics_hourly(host, metric_name, hour);
 
 -- Daily agent metric summaries (retained forever)
 agent_metrics_daily (
-  -- same as hourly, truncated to day
+  host TEXT NOT NULL,
+  day INTEGER NOT NULL,
+  metric_name TEXT NOT NULL,
+  avg REAL, min REAL, max REAL
 )
+CREATE INDEX idx_agent_daily_host_time ON agent_metrics_daily(host, metric_name, day);
 
 -- Security scan results
 security_scans (
@@ -298,6 +293,7 @@ security_scans (
   timestamp INTEGER NOT NULL,
   open_ports_json TEXT NOT NULL
 )
+CREATE INDEX idx_security_scans_target ON security_scans(target, timestamp);
 
 -- Security baselines
 security_baselines (
@@ -317,6 +313,12 @@ sessions (
   token TEXT PRIMARY KEY,
   user_id INTEGER REFERENCES users(id),
   expires_at INTEGER NOT NULL
+)
+
+-- Agent last-seen tracking (for staleness detection)
+agent_heartbeats (
+  host TEXT PRIMARY KEY,            -- host name from YAML
+  last_seen_at INTEGER NOT NULL
 )
 ```
 
@@ -441,14 +443,17 @@ alerting:
 
 Single YAML config file mounted into the container.
 
-### YAML vs Database Lifecycle
+### YAML as Sole Configuration Source
 
-Monitors and hosts defined in the YAML config are **seeded into the database on first run** and marked with `source='config'`. On subsequent starts:
-- Config-sourced entries are updated if the YAML changed (matched by name)
-- Config-sourced entries are NOT deleted if removed from YAML (prevents accidental data loss — delete via API/UI instead)
-- Config-sourced monitors show as read-only in the Settings UI (edit the YAML to change them)
-- Monitors created via the API/Settings UI are marked `source='api'` and are fully mutable
-- Both types coexist and run identically
+The YAML config file is the single source of truth for all configuration — monitors, agents, hosts, security targets, alerting. There is no config stored in the database.
+
+- Hub reads `config.yml` on startup and watches for changes (fsnotify). Config changes take effect without restart.
+- The Settings UI reads and writes the YAML file directly via the API (`GET/PUT /api/v1/config`).
+- SQLite stores only time-series data (check results, metrics, incidents, scans) and auth (users, sessions).
+- Monitor and host names from the YAML are used as keys in time-series tables (no integer ID mapping needed).
+- The config file must be mounted read-write in the container for UI edits to persist.
+
+This eliminates config drift, sync logic, and an entire class of "which source wins?" bugs.
 
 ```yaml
 server:
@@ -539,14 +544,14 @@ retention:
 # docker-compose.yml
 services:
   whatsupp:
-    image: ghcr.io/andyhazz/whatsupp  # update to your registry:latest
+    image: ghcr.io/andyhazz/whatsupp:latest  # update to your registry
     container_name: whatsupp
     restart: unless-stopped
     command: serve
     cap_add:
       - NET_RAW              # required for ICMP ping checks
     volumes:
-      - ./config.yml:/etc/whatsupp/config.yml:ro
+      - ./config:/etc/whatsupp          # config.yml lives here, writable for UI edits
       - whatsupp-data:/data
     env_file:
       - .env                  # WHATSUPP_ADMIN_PASSWORD, NTFY_*, AGENT_KEY_*
@@ -570,23 +575,35 @@ Reverse proxy routes to `whatsupp:8080` (e.g., Caddy, Traefik, nginx).
 
 ### Agent
 
+Uses a Docker socket proxy (`tecnativa/docker-socket-proxy`) to safely expose only container stats — no access to environment variables, exec, or other sensitive Docker API endpoints.
+
 ```yaml
 services:
   whatsupp-agent:
-    image: ghcr.io/andyhazz/whatsupp  # update to your registry:latest
+    image: ghcr.io/andyhazz/whatsupp:latest  # update to your registry
     container_name: whatsupp-agent
     restart: unless-stopped
     command: agent
     environment:
       - WHATSUPP_HUB_URL=https://monitor.example.com
       - WHATSUPP_AGENT_KEY=${AGENT_KEY}
+      - DOCKER_HOST=tcp://docker-proxy:2375
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro  # for Docker metrics
-      - /:/hostfs:ro                                    # for system metrics
-    pid: host    # for accurate process/CPU metrics
-```
+      - /:/hostfs:ro                       # for system metrics
+    pid: host                              # for accurate process/CPU metrics
+    depends_on:
+      - docker-proxy
 
-**Docker socket security note:** The Docker socket grants read access to container environment variables (which may contain secrets). For hardened deployments, use a read-only Docker socket proxy like `tecnativa/docker-socket-proxy` with only `CONTAINERS=1` enabled. For home/personal use, direct `:ro` mounting is acceptable.
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy
+    container_name: docker-proxy
+    restart: unless-stopped
+    environment:
+      - CONTAINERS=1                       # allow listing containers + stats
+      - POST=0                             # read-only
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+```
 
 ### Migration Path
 
@@ -610,20 +627,19 @@ RESTful JSON API, all endpoints under `/api/v1/`:
 
 ### Authenticated (session token in cookie or Authorization header)
 
+- `GET /api/v1/config` — read current YAML config (for Settings UI)
+- `PUT /api/v1/config` — write updated YAML config (Settings UI edits). Hub reloads automatically.
 - `GET /api/v1/monitors` — list all monitors with current status
-- `GET /api/v1/monitors/:id` — monitor detail
-- `GET /api/v1/monitors/:id/results?from=&to=` — check results (auto-selects storage tier based on time range: <=48h→raw, <=30d→hourly, >30d→daily)
-- `POST /api/v1/monitors` — create monitor
-- `PUT /api/v1/monitors/:id` — update monitor
-- `DELETE /api/v1/monitors/:id` — delete monitor
-- `GET /api/v1/hosts` — list agent hosts with current metrics
-- `GET /api/v1/hosts/:id` — host detail (name, type, last seen, current top-level metrics)
-- `GET /api/v1/hosts/:id/metrics?from=&to=&names=` — host metrics (auto-selects tier: <=48h→raw, <=7d→5min, <=90d→hourly, >90d→daily). `names` filters by metric name prefix (e.g. `cpu,mem`)
-- `GET /api/v1/admin/backup` — trigger SQLite backup, returns backup file
+- `GET /api/v1/monitors/:name` — monitor detail
+- `GET /api/v1/monitors/:name/results?from=&to=` — check results (auto-selects storage tier based on time range: <=48h→raw, <=30d→hourly, >30d→daily)
+- `GET /api/v1/hosts` — list agent/scrape hosts with current metrics and last-seen
+- `GET /api/v1/hosts/:name` — host detail (last seen, current top-level metrics)
+- `GET /api/v1/hosts/:name/metrics?from=&to=&names=` — host metrics (auto-selects tier: <=48h→raw, <=7d→5min, <=90d→hourly, >90d→daily). `names` filters by metric name prefix (e.g. `cpu,mem`)
 - `GET /api/v1/incidents?from=&to=` — incident list
 - `GET /api/v1/security/scans` — recent scan results
 - `GET /api/v1/security/baselines` — current baselines
 - `POST /api/v1/security/baselines/:target` — update baseline (accept current as new baseline)
+- `GET /api/v1/admin/backup` — trigger SQLite backup, returns backup file
 - `WS /api/v1/ws` — WebSocket for live updates
 
 ### Agent (agent key auth)
@@ -664,7 +680,8 @@ whatsupp/
 │   │   ├── auth.go              # Session auth
 │   │   └── websocket.go         # WebSocket hub
 │   └── config/
-│       └── config.go            # YAML config parsing
+│       ├── config.go            # YAML config parsing + validation
+│       └── writer.go            # Write config back to YAML (for Settings UI)
 ├── frontend/
 │   ├── src/
 │   │   ├── App.svelte
