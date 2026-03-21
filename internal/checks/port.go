@@ -24,7 +24,7 @@ func (c *PortChecker) Check(monitorName string) Result {
 		timeout = 10 * time.Second
 	}
 
-	addr := fmt.Sprintf("%s:%d", c.Host, c.Port)
+	addr := net.JoinHostPort(c.Host, fmt.Sprintf("%d", c.Port))
 	start := time.Now()
 	conn, err := net.DialTimeout("tcp", addr, timeout)
 	latency := float64(time.Since(start).Microseconds()) / 1000.0

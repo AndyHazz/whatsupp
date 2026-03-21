@@ -47,7 +47,7 @@ func (s *SecurityScanner) Scan() ([]int, error) {
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			addr := fmt.Sprintf("%s:%d", s.Host, p)
+			addr := net.JoinHostPort(s.Host, fmt.Sprintf("%d", p))
 			conn, err := net.DialTimeout("tcp", addr, timeout)
 			if err == nil {
 				conn.Close()
