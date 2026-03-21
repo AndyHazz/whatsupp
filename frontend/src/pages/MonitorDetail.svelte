@@ -199,6 +199,5 @@
     border-radius: 4px;
   }
   .cause { color: var(--red); }
-  .muted { color: var(--fg-muted); }
   .error { color: var(--red); }
 </style>

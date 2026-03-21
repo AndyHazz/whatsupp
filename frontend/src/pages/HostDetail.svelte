@@ -242,7 +242,6 @@
     color: var(--fg-muted);
   }
 
-  .muted { color: var(--fg-muted); }
   .error { color: var(--red); }
 
   @media (max-width: 1200px) {
