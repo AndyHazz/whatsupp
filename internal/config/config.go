@@ -68,6 +68,7 @@ type NtfyConfig struct {
     Topic    string `yaml:"topic"`
     Username string `yaml:"username,omitempty"`
     Password string `yaml:"password,omitempty"`
+    Token    string `yaml:"token,omitempty"`
 }
 
 type ThresholdsConfig struct {

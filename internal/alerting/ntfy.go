@@ -14,6 +14,7 @@ type NtfyConfig struct {
 	Topic            string
 	Username         string
 	Password         string
+	Token            string // Bearer token auth (alternative to username/password)
 	ReminderInterval time.Duration
 }
 
@@ -125,7 +126,9 @@ func (n *NtfyClient) send(msg ntfyMessage) error {
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	if n.config.Username != "" && n.config.Password != "" {
+	if n.config.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+n.config.Token)
+	} else if n.config.Username != "" && n.config.Password != "" {
 		req.SetBasicAuth(n.config.Username, n.config.Password)
 	}
 

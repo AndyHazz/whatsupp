@@ -48,6 +48,7 @@ func New(cfg *config.Config, configPath string) (*Hub, error) {
 		Topic:            cfg.Alerting.Ntfy.Topic,
 		Username:         cfg.Alerting.Ntfy.Username,
 		Password:         cfg.Alerting.Ntfy.Password,
+		Token:            cfg.Alerting.Ntfy.Token,
 		ReminderInterval: cfg.Alerting.Thresholds.DownReminderInterval,
 	})
 
