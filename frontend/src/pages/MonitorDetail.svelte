@@ -46,9 +46,18 @@
         : null;
 
       // Compute uptime % for this window
-      const total = rows.length;
-      const up = rows.filter(r => r.status === 'up').length;
-      windowUptime = total > 0 ? (up / total) * 100 : null;
+      // Use success_count/fail_count from aggregated tiers when available,
+      // fall back to counting status for raw tier
+      const hasAggCounts = rows.some(r => r.success_count || r.fail_count);
+      if (hasAggCounts) {
+        const totalChecks = rows.reduce((sum, r) => sum + (r.success_count || 0) + (r.fail_count || 0), 0);
+        const totalUp = rows.reduce((sum, r) => sum + (r.success_count || 0), 0);
+        windowUptime = totalChecks > 0 ? (totalUp / totalChecks) * 100 : null;
+      } else {
+        const total = rows.length;
+        const up = rows.filter(r => r.status === 'up').length;
+        windowUptime = total > 0 ? (up / total) * 100 : null;
+      }
     } catch (e) {
       error = e.message;
     } finally {

@@ -259,10 +259,12 @@ func flattenCheckSummaries(monitor string, summaries []CheckResultSummary) []Che
 			status = "down"
 		}
 		out[i] = CheckResult{
-			Monitor:   monitor,
-			Timestamp: s.Bucket,
-			Status:    status,
-			LatencyMs: s.AvgLatency,
+			Monitor:      monitor,
+			Timestamp:    s.Bucket,
+			Status:       status,
+			LatencyMs:    s.AvgLatency,
+			SuccessCount: s.SuccessCount,
+			FailCount:    s.FailCount,
 		}
 	}
 	return out

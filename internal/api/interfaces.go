@@ -120,6 +120,8 @@ type CheckResult struct {
 	Status       string  `json:"status"`
 	LatencyMs    float64 `json:"latency_ms"`
 	MetadataJSON string  `json:"metadata_json,omitempty"`
+	SuccessCount int     `json:"success_count,omitempty"` // populated from aggregated tiers
+	FailCount    int     `json:"fail_count,omitempty"`    // populated from aggregated tiers
 }
 
 type CheckResultSummary struct {
