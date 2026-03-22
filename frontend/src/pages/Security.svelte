@@ -3,6 +3,7 @@
   import { api } from '../lib/api.js';
   import { onMessage } from '../lib/ws.js';
   import Skeleton from '../components/Skeleton.svelte';
+  import OrbitDot from '../components/OrbitDot.svelte';
 
   let scans = [];
   let baselines = {};
@@ -139,6 +140,7 @@
       {@const hasDrift = diff.newPorts.length > 0 || diff.missingPorts.length > 0}
       {@const active = activeScans[target]}
       {@const sched = getSchedule(target)}
+      <OrbitDot lastEvent={scan.timestamp || 0} interval={sched && sched.next_run ? (sched.next_run - scan.timestamp) : 604800} color={hasDrift ? 'var(--orange)' : active ? 'var(--cyan)' : 'var(--green)'}>
       <div class="scan-card" class:drift={hasDrift} class:scanning={active}>
         <div class="scan-header">
           <div class="scan-title">
@@ -213,6 +215,7 @@
           {/if}
         </div>
       </div>
+      </OrbitDot>
     {/each}
     </div>
   {/if}

@@ -6,6 +6,7 @@
   import StatusBadge from '../components/StatusBadge.svelte';
   import Sparkline from '../components/Sparkline.svelte';
   import Skeleton from '../components/Skeleton.svelte';
+  import OrbitDot from '../components/OrbitDot.svelte';
 
   function goToMonitor(name) {
     navigate('/monitors/' + encodeURIComponent(name));
@@ -118,6 +119,7 @@
     {#if viewMode === 'cards'}
     <div class="grid">
       {#each monitors as m}
+        <OrbitDot lastEvent={m.last_check || 0} interval={m.interval || 60} color={m.status === 'down' ? 'var(--red)' : 'var(--cyan)'}>
         <div class="card" class:down={m.status === 'down'} on:click={() => goToMonitor(m.name)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && goToMonitor(m.name)}>
           <div class="card-top">
             <div class="card-title">
@@ -165,6 +167,7 @@
             <Sparkline data={sparklines[m.name] || []} statuses={sparklineStatuses[m.name] || []} width={260} height={36} />
           </div>
         </div>
+        </OrbitDot>
       {/each}
     </div>
     {:else}

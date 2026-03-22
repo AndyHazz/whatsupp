@@ -5,6 +5,7 @@
   import { onMessage } from '../lib/ws.js';
   import Gauge from '../components/Gauge.svelte';
   import Skeleton from '../components/Skeleton.svelte';
+  import OrbitDot from '../components/OrbitDot.svelte';
 
   let hosts = [];
   let hostMetrics = {}; // host -> { metricName: value }
@@ -96,6 +97,7 @@
   {:else}
     <div class="grid">
       {#each hosts as h}
+        <OrbitDot lastEvent={h.last_seen_at || 0} interval={30} color="var(--purple)">
         <a href="/hosts/{encodeURIComponent(h.host)}" use:link class="card">
           <div class="card-header">
             <span class="host-name">{h.host}</span>
@@ -140,6 +142,7 @@
             <div class="agent-version muted">{h.version}</div>
           {/if}
         </a>
+        </OrbitDot>
       {/each}
     </div>
   {/if}
