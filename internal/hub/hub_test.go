@@ -36,6 +36,7 @@ func TestHub_ProcessResult_DownTransition(t *testing.T) {
 		monitorStates:   make(map[string]*MonitorState),
 		monitorTypes:    make(map[string]string),
 		lastResults:     make(map[string]checks.Result),
+		lastCheckAt:     make(map[string]int64),
 		cfg:             &config.Config{},
 	}
 	h.monitorStates["Plex"] = NewMonitorState("Plex", 2)
@@ -82,6 +83,7 @@ func TestHub_ProcessResult_Recovery(t *testing.T) {
 		monitorStates:   make(map[string]*MonitorState),
 		monitorTypes:    make(map[string]string),
 		lastResults:     make(map[string]checks.Result),
+		lastCheckAt:     make(map[string]int64),
 		cfg:             &config.Config{},
 	}
 	h.monitorStates["Plex"] = NewMonitorState("Plex", 2)

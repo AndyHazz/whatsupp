@@ -38,6 +38,7 @@ type Hub struct {
 	monitorURLs     map[string]string // monitor name -> service URL (for linking)
 	monitorIntervals map[string]int   // monitor name -> check interval in seconds
 	lastResults     map[string]checks.Result
+	lastCheckAt     map[string]int64 // monitor name -> unix timestamp of last check
 	resultCh        chan checks.Result
 	stopCh          chan struct{}
 	apiServer       *http.Server
@@ -112,6 +113,7 @@ func New(cfg *config.Config, configPath string) (*Hub, error) {
 		monitorURLs:     monURLs,
 		monitorIntervals: monIntervals,
 		lastResults:     make(map[string]checks.Result),
+		lastCheckAt:     make(map[string]int64),
 		resultCh:        resultCh,
 		stopCh:          make(chan struct{}),
 		scanNextRun:     make(map[string]int64),
@@ -291,7 +293,9 @@ func (h *Hub) MonitorStatuses() map[string]api.MonitorStatus {
 		var certDays *int
 		if r, ok := h.lastResults[name]; ok {
 			latencyMs = r.LatencyMs
-			lastCheck = time.Now().Unix()
+			if ts, ok := h.lastCheckAt[name]; ok {
+				lastCheck = ts
+			}
 			// Extract cert days from metadata
 			if r.MetadataJSON != "" {
 				var cm certMeta
@@ -342,7 +346,9 @@ func (h *Hub) MonitorStatus(name string) (api.MonitorStatus, bool) {
 	var certDays *int
 	if r, ok := h.lastResults[name]; ok {
 		latencyMs = r.LatencyMs
-		lastCheck = time.Now().Unix()
+		if ts, ok := h.lastCheckAt[name]; ok {
+			lastCheck = ts
+		}
 		if r.MetadataJSON != "" {
 			var cm certMeta
 			if json.Unmarshal([]byte(r.MetadataJSON), &cm) == nil {
@@ -424,10 +430,11 @@ func (h *Hub) ReloadConfig() error {
 	h.monitorURLs = newURLs
 	h.monitorIntervals = newIntervals
 
-	// Clean up lastResults for removed monitors
+	// Clean up lastResults and lastCheckAt for removed monitors
 	for name := range h.lastResults {
 		if _, exists := newStates[name]; !exists {
 			delete(h.lastResults, name)
+			delete(h.lastCheckAt, name)
 		}
 	}
 	h.mu.Unlock()
@@ -486,6 +493,7 @@ func (h *Hub) processResult(result checks.Result) {
 	}
 	transition := ms.RecordResult(result)
 	h.lastResults[result.Monitor] = result
+	h.lastCheckAt[result.Monitor] = time.Now().Unix()
 	h.mu.Unlock()
 
 	// 3. Handle incidents

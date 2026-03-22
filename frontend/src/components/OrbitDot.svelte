@@ -74,7 +74,7 @@
   });
 </script>
 
-<div class="orbit-container" bind:this={container}>
+<div class="orbit-container" bind:this={container} style="--dot-color: {color};"  >
   <div
     class="orbit-dot"
     style="left: {dotX}px; top: {dotY}px; --dot-color: {color};"
@@ -85,6 +85,8 @@
 <style>
   .orbit-container {
     position: relative;
+    border-radius: var(--radius, 8px);
+    box-shadow: 0 0 8px -2px var(--dot-color, transparent), inset 0 0 0 1px color-mix(in srgb, var(--dot-color, transparent) 15%, transparent);
   }
 
   .orbit-dot {
