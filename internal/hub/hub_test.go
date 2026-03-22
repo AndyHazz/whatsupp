@@ -130,10 +130,6 @@ func TestHub_NewFromConfig(t *testing.T) {
 				DownReminderInterval: time.Hour,
 			},
 		},
-		Retention: config.RetentionConfig{
-			CheckResultsRaw: 720 * time.Hour,
-			Hourly:          4320 * time.Hour,
-		},
 	}
 
 	h, err := New(cfg, "/dev/null")

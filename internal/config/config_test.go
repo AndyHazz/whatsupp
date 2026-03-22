@@ -219,35 +219,5 @@ alerting:
     }
 }
 
-func TestLoadConfig_RetentionDefaults(t *testing.T) {
-    yaml := `
-server:
-  listen: ":8080"
-  db_path: "/tmp/test.db"
-
-alerting:
-  default_failure_threshold: 3
-  ntfy:
-    url: "https://ntfy.example.com"
-    topic: "test"
-  thresholds:
-    ssl_expiry_days: [14, 7, 3, 1]
-    disk_usage_pct: 90
-    disk_hysteresis_pct: 5
-    down_reminder_interval: "1h"
-`
-    dir := t.TempDir()
-    path := filepath.Join(dir, "config.yml")
-    os.WriteFile(path, []byte(yaml), 0644)
-
-    cfg, err := Load(path)
-    if err != nil {
-        t.Fatalf("Load() error: %v", err)
-    }
-    if cfg.Retention.CheckResultsRaw != 720*time.Hour {
-        t.Errorf("CheckResultsRaw = %v, want 720h", cfg.Retention.CheckResultsRaw)
-    }
-    if cfg.Retention.Hourly != 4320*time.Hour {
-        t.Errorf("Hourly = %v, want 4320h", cfg.Retention.Hourly)
-    }
-}
+// Retention is no longer configurable — hardcoded in the downsampler
+// based on tier thresholds. See internal/hub/downsampler.go.

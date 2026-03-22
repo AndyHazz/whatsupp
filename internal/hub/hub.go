@@ -88,23 +88,13 @@ func New(cfg *config.Config, configPath string) (*Hub, error) {
 		}
 	}
 
-	retention := RetentionConfig{
-		CheckResultsRaw:  cfg.Retention.CheckResultsRaw,
-		AgentMetricsRaw:  cfg.Retention.AgentMetricsRaw,
-		AgentMetrics5Min: cfg.Retention.AgentMetrics5Min,
-		Hourly:           cfg.Retention.Hourly,
-	}
-	if retention.CheckResultsRaw == 0 {
-		retention = DefaultRetentionConfig()
-	}
-
 	return &Hub{
 		cfg:             cfg,
 		configPath:      configPath,
 		store:           s,
 		alerter:         ntfyClient,
 		scheduler:       sched,
-		downsampler:     NewDownsampler(s, retention),
+		downsampler:     NewDownsampler(s),
 		incidentManager: NewIncidentManager(s),
 		monitorStates:   states,
 		monitorTypes:    monTypes,

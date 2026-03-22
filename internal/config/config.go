@@ -17,7 +17,6 @@ type Config struct {
     ScrapeTargets []ScrapeTarget  `yaml:"scrape_targets"`
     Security      SecurityConfig  `yaml:"security"`
     Alerting      AlertingConfig  `yaml:"alerting"`
-    Retention     RetentionConfig `yaml:"retention"`
 }
 
 type ServerConfig struct {
@@ -78,14 +77,6 @@ type ThresholdsConfig struct {
     DownReminderInterval time.Duration `yaml:"down_reminder_interval"`
 }
 
-type RetentionConfig struct {
-    CheckResultsRaw  time.Duration `yaml:"check_results_raw"`
-    AgentMetricsRaw  time.Duration `yaml:"agent_metrics_raw"`
-    AgentMetrics5Min time.Duration `yaml:"agent_metrics_5min"`
-    Hourly           time.Duration `yaml:"hourly"`
-    Daily            time.Duration `yaml:"daily"`
-}
-
 type ScrapeTarget struct {
     Name     string        `yaml:"name"`
     URL      string        `yaml:"url"`
@@ -132,18 +123,6 @@ func applyDefaults(cfg *Config) {
     }
     if cfg.Alerting.DefaultFailureThreshold == 0 {
         cfg.Alerting.DefaultFailureThreshold = 3
-    }
-    if cfg.Retention.CheckResultsRaw == 0 {
-        cfg.Retention.CheckResultsRaw = 720 * time.Hour
-    }
-    if cfg.Retention.AgentMetricsRaw == 0 {
-        cfg.Retention.AgentMetricsRaw = 48 * time.Hour
-    }
-    if cfg.Retention.AgentMetrics5Min == 0 {
-        cfg.Retention.AgentMetrics5Min = 2160 * time.Hour
-    }
-    if cfg.Retention.Hourly == 0 {
-        cfg.Retention.Hourly = 4320 * time.Hour
     }
 
     for i := range cfg.Monitors {

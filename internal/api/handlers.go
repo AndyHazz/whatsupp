@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -578,7 +579,7 @@ func (h *Handlers) ListMutes(w http.ResponseWriter, r *http.Request) {
 
 // ToggleMute handles PUT /api/v1/mutes/:name — toggles mute state.
 func (h *Handlers) ToggleMute(w http.ResponseWriter, r *http.Request) {
-	name := chi.URLParam(r, "name")
+	name, _ := url.PathUnescape(chi.URLParam(r, "name"))
 
 	muted, err := h.store.GetMutedNames()
 	if err != nil {
