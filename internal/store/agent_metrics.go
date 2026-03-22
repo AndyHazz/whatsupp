@@ -236,6 +236,37 @@ func (s *Store) AggregateAgentMetrics5Min(from, to time.Time) error {
 	return err
 }
 
+// QueryAgentMetrics15Min returns 15-minute aggregated agent metrics.
+func (s *Store) QueryAgentMetrics15Min(host string, from, to time.Time, names []string) ([]AgentMetricSummary, error) {
+	return s.queryAgentMetricsSummary("agent_metrics_15min", "bucket", host, from, to, names)
+}
+
+// AggregateAgentMetrics15Min aggregates 5-min agent metrics into 15-minute buckets.
+func (s *Store) AggregateAgentMetrics15Min(from, to time.Time) error {
+	_, err := s.db.Exec(`
+		INSERT INTO agent_metrics_15min (host, bucket, metric_name, avg, min, max)
+		SELECT host,
+		       (bucket / 900) * 900 AS bucket,
+		       metric_name,
+		       AVG(avg), MIN(min), MAX(max)
+		FROM agent_metrics_5min
+		WHERE bucket >= ? AND bucket < ?
+		GROUP BY host, bucket, metric_name
+		ON CONFLICT(host, bucket, metric_name) DO UPDATE SET
+		  avg=excluded.avg, min=excluded.min, max=excluded.max
+	`, from.Unix(), to.Unix())
+	return err
+}
+
+// DeleteOldAgentMetrics15Min deletes 15-min agent metrics older than cutoff.
+func (s *Store) DeleteOldAgentMetrics15Min(cutoff time.Time) (int64, error) {
+	res, err := s.db.Exec(`DELETE FROM agent_metrics_15min WHERE bucket < ?`, cutoff.Unix())
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 // AggregateAgentMetricsHourly aggregates 5-min agent metrics into hourly buckets.
 func (s *Store) AggregateAgentMetricsHourly(hourStart, hourEnd int64) error {
 	_, err := s.db.Exec(`

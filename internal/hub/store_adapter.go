@@ -187,6 +187,14 @@ func (a *StoreAdapter) GetAgentMetrics5Min(host string, from, to time.Time, name
 	return convertSummaries(rows), nil
 }
 
+func (a *StoreAdapter) GetAgentMetrics15Min(host string, from, to time.Time, names []string) ([]api.AgentMetricSummary, error) {
+	rows, err := a.s.QueryAgentMetrics15Min(host, from, to, names)
+	if err != nil {
+		return nil, err
+	}
+	return convertSummaries(rows), nil
+}
+
 func (a *StoreAdapter) GetAgentMetricsHourly(host string, from, to time.Time, names []string) ([]api.AgentMetricSummary, error) {
 	rows, err := a.s.QueryAgentMetricsHourly(host, from, to, names)
 	if err != nil {

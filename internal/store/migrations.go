@@ -63,6 +63,17 @@ CREATE TABLE IF NOT EXISTS agent_metrics_5min (
 );
 CREATE INDEX IF NOT EXISTS idx_agent_5min_host_time ON agent_metrics_5min(host, metric_name, bucket);
 
+CREATE TABLE IF NOT EXISTS agent_metrics_15min (
+    host TEXT NOT NULL,
+    bucket INTEGER NOT NULL,
+    metric_name TEXT NOT NULL,
+    avg REAL,
+    min REAL,
+    max REAL,
+    UNIQUE(host, bucket, metric_name)
+);
+CREATE INDEX IF NOT EXISTS idx_agent_15min_host_time ON agent_metrics_15min(host, metric_name, bucket);
+
 CREATE TABLE IF NOT EXISTS agent_metrics_hourly (
     host TEXT NOT NULL,
     hour INTEGER NOT NULL,

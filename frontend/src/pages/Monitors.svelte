@@ -119,29 +119,27 @@
     <div class="grid">
       {#each monitors as m}
         <div class="card" class:down={m.status === 'down'} on:click={() => goToMonitor(m.name)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && goToMonitor(m.name)}>
-          <div class="card-header">
-            {#if m.url}
-              <a href={m.url} target="_blank" rel="noopener noreferrer" class="monitor-name service-link" on:click|stopPropagation>{m.name}</a>
-            {:else}
-              <span class="monitor-name">{m.name}</span>
-            {/if}
-            <StatusBadge status={m.status} />
-          </div>
-          <div class="card-body">
-            <Sparkline data={sparklines[m.name] || []} statuses={sparklineStatuses[m.name] || []} />
-            <div class="meta">
+          <div class="card-top">
+            <div class="card-title">
+              {#if m.url}
+                <a href={m.url} target="_blank" rel="noopener noreferrer" class="monitor-name service-link" on:click|stopPropagation>{m.name}</a>
+              {:else}
+                <span class="monitor-name">{m.name}</span>
+              {/if}
+            </div>
+            <div class="card-stats">
               {#if m.latency_ms != null}
                 <span class="latency">{Math.round(m.latency_ms)}<span class="unit">ms</span></span>
               {/if}
-              {#if m.uptime_pct != null}
-                <span class="uptime" class:good={m.uptime_pct >= 99} class:warn={m.uptime_pct < 99 && m.uptime_pct >= 95} class:bad={m.uptime_pct < 95}>
-                  {m.uptime_pct.toFixed(1)}%
-                </span>
-              {/if}
+              <StatusBadge status={m.status} />
             </div>
           </div>
-          <div class="card-footer">
-            <span class="footer-info">{m.type} &middot; {m.interval || '60s'}</span>
+          <div class="card-meta">
+            {#if m.uptime_pct != null}
+              <span class="uptime" class:good={m.uptime_pct >= 99} class:warn={m.uptime_pct < 99 && m.uptime_pct >= 95} class:bad={m.uptime_pct < 95}>
+                {m.uptime_pct.toFixed(1)}%
+              </span>
+            {/if}
             <button
               class="mute-btn"
               class:is-muted={mutedNames.has(m.name)}
@@ -154,6 +152,9 @@
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
               {/if}
             </button>
+          </div>
+          <div class="card-sparkline">
+            <Sparkline data={sparklines[m.name] || []} statuses={sparklineStatuses[m.name] || []} width={260} height={36} />
           </div>
         </div>
       {/each}
@@ -298,16 +299,25 @@
     border-left: 3px solid var(--red);
   }
 
-  .card-header {
+  .card-top {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 12px;
+    margin-bottom: 4px;
+  }
+
+  .card-title {
+    min-width: 0;
+    overflow: hidden;
   }
 
   .monitor-name {
     font-weight: 600;
-    font-size: 1.05rem;
+    font-size: 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
   }
 
   .service-link {
@@ -320,49 +330,48 @@
     text-decoration: underline;
   }
 
-  .card-body {
+  .card-stats {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 8px;
-  }
-
-  .meta {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 2px;
-    font-size: 0.85rem;
+    gap: 8px;
+    flex-shrink: 0;
   }
 
   .latency {
     color: var(--cyan);
     font-weight: 700;
-    font-size: 1.25rem;
+    font-size: 1.1rem;
     letter-spacing: -0.5px;
   }
   .unit {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     font-weight: 400;
     opacity: 0.7;
     margin-left: 1px;
   }
 
+  .card-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .uptime {
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
   .uptime.good { color: var(--green); }
   .uptime.warn { color: var(--orange); }
   .uptime.bad  { color: var(--red); }
 
-  .card-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+  .card-sparkline {
+    width: 100%;
+    overflow: hidden;
   }
-
-  .footer-info {
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: var(--fg-muted);
+  .card-sparkline :global(.sparkline) {
+    width: 100%;
+    height: 36px;
   }
 
   .mute-btn {

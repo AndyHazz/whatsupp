@@ -96,13 +96,16 @@ func selectCheckResultTier(duration time.Duration) string {
 
 // selectAgentMetricTier picks the storage tier based on the requested time range.
 // Target: ~72-168 data points per metric at each zoom level.
-// <=1h → raw (~120 pts at 30s), <=6h → 5min (~72 pts), <=7d → hourly (~24-168 pts), >7d → daily
+// <=1h → raw (~120 pts), <=6h → 5min (~72 pts), <=48h → 15min (~96-192 pts),
+// <=7d → hourly (~168 pts), >7d → daily
 func selectAgentMetricTier(duration time.Duration) string {
 	switch {
 	case duration <= 1*time.Hour:
 		return "raw"
 	case duration <= 6*time.Hour:
 		return "5min"
+	case duration <= 48*time.Hour:
+		return "15min"
 	case duration <= 7*24*time.Hour:
 		return "hourly"
 	default:
@@ -216,6 +219,13 @@ func (h *Handlers) GetHostMetrics(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(results)
 	case "5min":
 		results, err := h.store.GetAgentMetrics5Min(name, from, to, names)
+		if err != nil {
+			jsonError(w, "query failed", http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(flattenSummaries(name, results))
+	case "15min":
+		results, err := h.store.GetAgentMetrics15Min(name, from, to, names)
 		if err != nil {
 			jsonError(w, "query failed", http.StatusInternalServerError)
 			return

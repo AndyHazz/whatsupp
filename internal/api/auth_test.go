@@ -111,6 +111,9 @@ func (a *testStoreAdapter) GetAgentMetrics(host string, from, to time.Time, name
 func (a *testStoreAdapter) GetAgentMetrics5Min(host string, from, to time.Time, names []string) ([]AgentMetricSummary, error) {
 	return nil, nil
 }
+func (a *testStoreAdapter) GetAgentMetrics15Min(host string, from, to time.Time, names []string) ([]AgentMetricSummary, error) {
+	return nil, nil
+}
 func (a *testStoreAdapter) GetAgentMetricsHourly(host string, from, to time.Time, names []string) ([]AgentMetricSummary, error) {
 	return nil, nil
 }

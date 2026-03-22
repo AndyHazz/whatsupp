@@ -57,6 +57,7 @@ type HostStore interface {
 	GetAgentHeartbeat(host string) (*AgentHeartbeat, error)
 	GetAgentMetrics(host string, from, to time.Time, names []string) ([]AgentMetric, error)
 	GetAgentMetrics5Min(host string, from, to time.Time, names []string) ([]AgentMetricSummary, error)
+	GetAgentMetrics15Min(host string, from, to time.Time, names []string) ([]AgentMetricSummary, error)
 	GetAgentMetricsHourly(host string, from, to time.Time, names []string) ([]AgentMetricSummary, error)
 	GetAgentMetricsDaily(host string, from, to time.Time, names []string) ([]AgentMetricSummary, error)
 	InsertAgentMetrics(host string, timestamp time.Time, metrics []AgentMetricPoint) error

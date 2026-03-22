@@ -37,7 +37,7 @@
   })();
 </script>
 
-<svg {width} {height} viewBox="0 0 {width} {height}" class="sparkline">
+<svg {width} {height} viewBox="0 0 {width} {height}" preserveAspectRatio="none" class="sparkline">
   {#each downtimeRanges as range}
     <rect
       x={range.x}

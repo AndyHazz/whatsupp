@@ -11,6 +11,7 @@ export function metricTierLabel(fromTs, toTs) {
   const hours = (toTs - fromTs) / 3600;
   if (hours <= 1) return 'raw';
   if (hours <= 6) return '5min';
+  if (hours <= 48) return '15min';
   if (hours <= 168) return 'hourly';  // 7 days
   return 'daily';
 }

@@ -133,7 +133,10 @@ func TestSelectAgentMetricTier(t *testing.T) {
 		{"1 hour → raw", 1 * time.Hour, "raw"},
 		{"2 hours → 5min", 2 * time.Hour, "5min"},
 		{"6 hours → 5min", 6 * time.Hour, "5min"},
-		{"7 hours → hourly", 7 * time.Hour, "hourly"},
+		{"7 hours → 15min", 7 * time.Hour, "15min"},
+		{"24 hours → 15min", 24 * time.Hour, "15min"},
+		{"48 hours → 15min", 48 * time.Hour, "15min"},
+		{"3 days → hourly", 3 * 24 * time.Hour, "hourly"},
 		{"7 days → hourly", 7 * 24 * time.Hour, "hourly"},
 		{"8 days → daily", 8 * 24 * time.Hour, "daily"},
 	}

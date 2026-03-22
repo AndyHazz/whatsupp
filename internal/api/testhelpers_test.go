@@ -128,6 +128,9 @@ func (m *mockStore) GetAgentMetrics(host string, from, to time.Time, names []str
 func (m *mockStore) GetAgentMetrics5Min(host string, from, to time.Time, names []string) ([]AgentMetricSummary, error) {
 	return m.agentMetricSumm, nil
 }
+func (m *mockStore) GetAgentMetrics15Min(host string, from, to time.Time, names []string) ([]AgentMetricSummary, error) {
+	return m.agentMetricSumm, nil
+}
 func (m *mockStore) GetAgentMetricsHourly(host string, from, to time.Time, names []string) ([]AgentMetricSummary, error) {
 	return m.agentMetricSumm, nil
 }

@@ -46,8 +46,9 @@ func NewDownsampler(s *store.Store, retention RetentionConfig) *Downsampler {
 
 // Start begins the downsampling goroutines.
 func (d *Downsampler) Start() {
-	d.wg.Add(3)
+	d.wg.Add(4)
 	go d.fiveMinLoop()
+	go d.fifteenMinLoop()
 	go d.hourlyLoop()
 	go d.dailyLoop()
 }
@@ -102,6 +103,26 @@ func (d *Downsampler) AggregateAgentMetrics5Min(start, end time.Time) error {
 // PurgeRawAgentMetrics deletes raw agent metrics older than the given time.
 func (d *Downsampler) PurgeRawAgentMetrics(olderThan time.Time) (int64, error) {
 	return d.store.DeleteOldAgentMetrics(olderThan)
+}
+
+func (d *Downsampler) fifteenMinLoop() {
+	defer d.wg.Done()
+	ticker := time.NewTicker(15 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			now := time.Now()
+			end := now.Truncate(15 * time.Minute)
+			start := end.Add(-15 * time.Minute)
+			if err := d.store.AggregateAgentMetrics15Min(start, end); err != nil {
+				log.Printf("downsampler: 15-min agent aggregation error: %v", err)
+			}
+		case <-d.stopCh:
+			return
+		}
+	}
 }
 
 func (d *Downsampler) hourlyLoop() {
@@ -171,6 +192,12 @@ func (d *Downsampler) runHourlyAggregation() {
 			log.Printf("downsampler: cleanup 5min agent metrics error: %v", err)
 		} else if n > 0 {
 			log.Printf("downsampler: deleted %d old 5-min agent metrics", n)
+		}
+		// 15-min follows same retention as 5-min
+		if n, err := d.store.DeleteOldAgentMetrics15Min(cutoff); err != nil {
+			log.Printf("downsampler: cleanup 15min agent metrics error: %v", err)
+		} else if n > 0 {
+			log.Printf("downsampler: deleted %d old 15-min agent metrics", n)
 		}
 	}
 }
