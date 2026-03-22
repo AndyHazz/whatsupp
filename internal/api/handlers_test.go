@@ -111,8 +111,8 @@ func TestSelectCheckResultTier(t *testing.T) {
 		{"1 hour → raw", 1 * time.Hour, "raw"},
 		{"6 hours → raw", 6 * time.Hour, "raw"},
 		{"7 hours → hourly", 7 * time.Hour, "hourly"},
-		{"30 days → hourly", 30 * 24 * time.Hour, "hourly"},
-		{"31 days → daily", 31 * 24 * time.Hour, "daily"},
+		{"7 days → hourly", 7 * 24 * time.Hour, "hourly"},
+		{"8 days → daily", 8 * 24 * time.Hour, "daily"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -131,12 +131,11 @@ func TestSelectAgentMetricTier(t *testing.T) {
 		want     string
 	}{
 		{"1 hour → raw", 1 * time.Hour, "raw"},
-		{"3 hours → raw", 3 * time.Hour, "raw"},
-		{"4 hours → 5min", 4 * time.Hour, "5min"},
-		{"48 hours → 5min", 48 * time.Hour, "5min"},
-		{"3 days → hourly", 3 * 24 * time.Hour, "hourly"},
-		{"14 days → hourly", 14 * 24 * time.Hour, "hourly"},
-		{"15 days → daily", 15 * 24 * time.Hour, "daily"},
+		{"2 hours → 5min", 2 * time.Hour, "5min"},
+		{"6 hours → 5min", 6 * time.Hour, "5min"},
+		{"7 hours → hourly", 7 * time.Hour, "hourly"},
+		{"7 days → hourly", 7 * 24 * time.Hour, "hourly"},
+		{"8 days → daily", 8 * 24 * time.Hour, "daily"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

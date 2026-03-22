@@ -1,17 +1,17 @@
-// Check result tiers
+// Check result tiers (must match backend selectCheckResultTier)
 export function checkTierLabel(fromTs, toTs) {
   const hours = (toTs - fromTs) / 3600;
-  if (hours <= 48) return 'raw';
-  if (hours <= 720) return 'hourly';  // 30 days
+  if (hours <= 6) return 'raw';
+  if (hours <= 168) return 'hourly';  // 7 days
   return 'daily';
 }
 
-// Agent metric tiers
+// Agent metric tiers (must match backend selectAgentMetricTier)
 export function metricTierLabel(fromTs, toTs) {
   const hours = (toTs - fromTs) / 3600;
-  if (hours <= 48) return 'raw';
-  if (hours <= 168) return '5min';    // 7 days
-  if (hours <= 2160) return 'hourly'; // 90 days
+  if (hours <= 1) return 'raw';
+  if (hours <= 6) return '5min';
+  if (hours <= 168) return 'hourly';  // 7 days
   return 'daily';
 }
 

@@ -81,12 +81,13 @@ func (h *Handlers) GetMonitor(w http.ResponseWriter, r *http.Request) {
 }
 
 // selectCheckResultTier picks the storage tier based on the requested time range.
-// <=6h → raw, <=30d → hourly, >30d → daily
+// Target: ~60-360 data points per monitor at each zoom level.
+// <=6h → raw (~60-360 pts at 60s interval), <=7d → hourly (~24-168 pts), >7d → daily
 func selectCheckResultTier(duration time.Duration) string {
 	switch {
 	case duration <= 6*time.Hour:
 		return "raw"
-	case duration <= 30*24*time.Hour:
+	case duration <= 7*24*time.Hour:
 		return "hourly"
 	default:
 		return "daily"
@@ -94,14 +95,15 @@ func selectCheckResultTier(duration time.Duration) string {
 }
 
 // selectAgentMetricTier picks the storage tier based on the requested time range.
-// <=3h → raw, <=48h → 5min, <=14d → hourly, >14d → daily
+// Target: ~72-168 data points per metric at each zoom level.
+// <=1h → raw (~120 pts at 30s), <=6h → 5min (~72 pts), <=7d → hourly (~24-168 pts), >7d → daily
 func selectAgentMetricTier(duration time.Duration) string {
 	switch {
-	case duration <= 3*time.Hour:
+	case duration <= 1*time.Hour:
 		return "raw"
-	case duration <= 48*time.Hour:
+	case duration <= 6*time.Hour:
 		return "5min"
-	case duration <= 14*24*time.Hour:
+	case duration <= 7*24*time.Hour:
 		return "hourly"
 	default:
 		return "daily"
@@ -151,14 +153,14 @@ func (h *Handlers) GetMonitorResults(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "query failed", http.StatusInternalServerError)
 			return
 		}
-		json.NewEncoder(w).Encode(results)
+		json.NewEncoder(w).Encode(flattenCheckSummaries(name, results))
 	case "daily":
 		results, err := h.store.GetCheckResultsDaily(name, from, to)
 		if err != nil {
 			jsonError(w, "query failed", http.StatusInternalServerError)
 			return
 		}
-		json.NewEncoder(w).Encode(results)
+		json.NewEncoder(w).Encode(flattenCheckSummaries(name, results))
 	}
 }
 
@@ -234,6 +236,25 @@ func (h *Handlers) GetHostMetrics(w http.ResponseWriter, r *http.Request) {
 		}
 		json.NewEncoder(w).Encode(flattenSummaries(name, results))
 	}
+}
+
+// flattenCheckSummaries converts aggregated check result summaries into the same
+// shape as raw check results so the frontend chart code works unchanged.
+func flattenCheckSummaries(monitor string, summaries []CheckResultSummary) []CheckResult {
+	out := make([]CheckResult, len(summaries))
+	for i, s := range summaries {
+		status := "up"
+		if s.FailCount > 0 && s.SuccessCount == 0 {
+			status = "down"
+		}
+		out[i] = CheckResult{
+			Monitor:   monitor,
+			Timestamp: s.Bucket,
+			Status:    status,
+			LatencyMs: s.AvgLatency,
+		}
+	}
+	return out
 }
 
 // flattenSummaries converts aggregated metric summaries into the same shape as
