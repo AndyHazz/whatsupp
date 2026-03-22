@@ -83,6 +83,7 @@
   {:else if scans.length === 0}
     <p class="muted">No security scans have been run yet. Configure scan targets in Settings.</p>
   {:else}
+    <div class="scan-grid">
     <!-- Group scans by target, show latest per target -->
     {#each Object.entries(
       scans.reduce((acc, s) => {
@@ -92,79 +93,127 @@
     ) as [target, scan]}
       {@const baseline = baselines[target]}
       {@const diff = getDiff(scan, baseline)}
-      <div class="scan-card">
+      {@const hasDrift = diff.newPorts.length > 0 || diff.missingPorts.length > 0}
+      <div class="scan-card" class:drift={hasDrift}>
         <div class="scan-header">
-          <h2>{target}</h2>
-          <span class="scan-time">Last scan: {formatTime(scan.timestamp)}</span>
-        </div>
-
-        <div class="ports">
-          <h3>Open Ports ({(scan.open_ports || []).length})</h3>
-          <div class="port-list">
-            {#each (scan.open_ports || []) as port}
-              {@const isNew = diff.newPorts.includes(port)}
-              <span class="port-badge" class:new-port={isNew}>
-                {port}
-                {#if isNew}<span class="new-tag">NEW</span>{/if}
-              </span>
-            {/each}
+          <div class="scan-title">
+            <span class="status-icon" class:ok={!hasDrift && baseline} class:warn={hasDrift} class:none={!baseline && !hasDrift}>
+              {#if hasDrift}&#9888;{:else if baseline}&#10003;{:else}&#8212;{/if}
+            </span>
+            <h2>{target}</h2>
           </div>
+          <span class="scan-time">{formatTime(scan.timestamp)}</span>
         </div>
 
-        {#if diff.missingPorts.length > 0}
-          <div class="missing">
-            <h3>Missing from Baseline</h3>
+        <div class="scan-body">
+          <div class="port-section">
+            <h3>Open Ports <span class="port-count">{(scan.open_ports || []).length}</span></h3>
             <div class="port-list">
-              {#each diff.missingPorts as port}
-                <span class="port-badge missing-port">{port}</span>
+              {#each (scan.open_ports || []) as port}
+                {@const isNew = diff.newPorts.includes(port)}
+                <span class="port-badge" class:new-port={isNew}>
+                  {port}
+                  {#if isNew}<span class="new-tag">new</span>{/if}
+                </span>
               {/each}
             </div>
           </div>
-        {/if}
 
-        {#if diff.newPorts.length > 0 || diff.missingPorts.length > 0}
-          <button class="accept-btn" on:click={() => acceptBaseline(target)}>
-            Accept as New Baseline
-          </button>
-        {:else if !baseline}
-          <button class="accept-btn" on:click={() => acceptBaseline(target)}>
-            Set Baseline
-          </button>
-        {:else}
-          <p class="baseline-match">Matches baseline</p>
-        {/if}
+          {#if diff.missingPorts.length > 0}
+            <div class="port-section missing">
+              <h3>Missing from Baseline</h3>
+              <div class="port-list">
+                {#each diff.missingPorts as port}
+                  <span class="port-badge missing-port">{port}</span>
+                {/each}
+              </div>
+            </div>
+          {/if}
+        </div>
+
+        <div class="scan-footer">
+          {#if hasDrift}
+            <button class="accept-btn" on:click={() => acceptBaseline(target)}>
+              Accept as New Baseline
+            </button>
+          {:else if !baseline}
+            <button class="accept-btn secondary" on:click={() => acceptBaseline(target)}>
+              Set Baseline
+            </button>
+          {:else}
+            <span class="baseline-match">&#10003; Matches baseline</span>
+          {/if}
+        </div>
       </div>
     {/each}
+    </div>
   {/if}
 </div>
 
 <style>
-  .security-page h1 { margin-bottom: var(--gap); }
+  .security-page h1 { margin-bottom: 20px; }
+
+  .scan-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    gap: var(--gap);
+  }
 
   .scan-card {
     background: var(--bg-card);
-    padding: 16px;
     border-radius: var(--radius);
-    margin-bottom: var(--gap);
     border: 1px solid var(--border-subtle);
     box-shadow: var(--shadow-card);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
+  .scan-card.drift {
+    border-color: rgba(255, 184, 108, 0.3);
+  }
+
   .scan-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-subtle);
   }
-  .scan-header h2 { font-size: 1.1rem; }
-  .scan-time { font-size: 0.8rem; color: var(--fg-muted); }
+  .scan-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .scan-header h2 { font-size: 1.05rem; }
+  .scan-time { font-size: 0.75rem; color: var(--fg-muted); white-space: nowrap; }
 
-  .ports, .missing {
-    margin-bottom: 12px;
+  .status-icon {
+    font-size: 1rem;
+    line-height: 1;
   }
-  .ports h3, .missing h3 {
-    font-size: 0.9rem;
+  .status-icon.ok { color: var(--green); }
+  .status-icon.warn { color: var(--orange); }
+  .status-icon.none { color: var(--fg-muted); }
+
+  .scan-body {
+    padding: 14px 16px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .port-section h3 {
+    font-size: 0.8rem;
+    font-weight: 500;
     color: var(--fg-muted);
     margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .port-count {
+    font-weight: 600;
+    color: var(--fg);
   }
 
   .port-list {
@@ -174,25 +223,34 @@
   }
 
   .port-badge {
-    background: rgba(248, 248, 242, 0.08);
-    padding: 2px 8px;
+    background: rgba(248, 248, 242, 0.06);
+    padding: 3px 10px;
     border-radius: 4px;
-    font-size: 0.85rem;
-    font-family: monospace;
+    font-size: 0.8rem;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    border: 1px solid rgba(248, 248, 242, 0.06);
   }
   .port-badge.new-port {
-    background: rgba(255, 85, 85, 0.15);
+    background: rgba(255, 85, 85, 0.12);
+    border-color: rgba(255, 85, 85, 0.25);
     color: var(--red);
   }
   .port-badge.missing-port {
-    background: rgba(255, 184, 108, 0.15);
+    background: rgba(255, 184, 108, 0.12);
+    border-color: rgba(255, 184, 108, 0.25);
     color: var(--orange);
   }
   .new-tag {
-    font-size: 0.65rem;
+    font-size: 0.6rem;
     font-weight: 700;
     margin-left: 4px;
     text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .scan-footer {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border-subtle);
   }
 
   .accept-btn {
@@ -201,18 +259,27 @@
     border: none;
     padding: 6px 14px;
     border-radius: var(--radius);
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     font-weight: 600;
-    margin-top: 8px;
+  }
+  .accept-btn.secondary {
+    background: transparent;
+    color: var(--purple);
+    border: 1px solid var(--purple);
   }
   .accept-btn:hover { filter: brightness(1.1); }
 
   .baseline-match {
     color: var(--green);
-    font-size: 0.85rem;
-    margin-top: 8px;
+    font-size: 0.82rem;
   }
 
   .muted { color: var(--fg-muted); }
   .error { color: var(--red); }
+
+  @media (max-width: 520px) {
+    .scan-grid {
+      grid-template-columns: 1fr;
+    }
+  }
 </style>

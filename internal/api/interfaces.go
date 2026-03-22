@@ -134,13 +134,14 @@ type CheckResultSummary struct {
 }
 
 type MonitorStatus struct {
-	Name      string  `json:"name"`
-	Type      string  `json:"type"`
-	Status    string  `json:"status"` // "up", "down", "unknown"
-	LatencyMs float64 `json:"latency_ms"`
-	LastCheck int64   `json:"last_check"`
-	UptimePct float64 `json:"uptime_pct"` // 24h uptime
-	URL       string  `json:"url,omitempty"`
+	Name         string  `json:"name"`
+	Type         string  `json:"type"`
+	Status       string  `json:"status"` // "up", "down", "unknown"
+	LatencyMs    float64 `json:"latency_ms"`
+	LastCheck    int64   `json:"last_check"`
+	UptimePct    float64 `json:"uptime_pct"` // 24h uptime
+	URL          string  `json:"url,omitempty"`
+	CertDaysLeft *int    `json:"cert_days_left,omitempty"`
 }
 
 type AgentHeartbeat struct {

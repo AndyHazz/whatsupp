@@ -135,11 +135,19 @@
             </div>
           </div>
           <div class="card-meta">
-            {#if m.uptime_pct != null}
-              <span class="uptime" class:good={m.uptime_pct >= 99} class:warn={m.uptime_pct < 99 && m.uptime_pct >= 95} class:bad={m.uptime_pct < 95}>
-                {m.uptime_pct.toFixed(1)}%
-              </span>
-            {/if}
+            <div class="card-meta-left">
+              {#if m.uptime_pct != null}
+                <span class="uptime" class:good={m.uptime_pct >= 99} class:warn={m.uptime_pct < 99 && m.uptime_pct >= 95} class:bad={m.uptime_pct < 95}>
+                  {m.uptime_pct.toFixed(1)}%
+                </span>
+              {/if}
+              {#if m.cert_days_left != null}
+                <span class="cert-badge" class:cert-warn={m.cert_days_left <= 14} class:cert-danger={m.cert_days_left <= 3}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  {m.cert_days_left}d
+                </span>
+              {/if}
+            </div>
             <button
               class="mute-btn"
               class:is-muted={mutedNames.has(m.name)}
@@ -364,6 +372,22 @@
   .uptime.good { color: var(--green); }
   .uptime.warn { color: var(--orange); }
   .uptime.bad  { color: var(--red); }
+
+  .card-meta-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .cert-badge {
+    font-size: 0.72rem;
+    color: var(--fg-muted);
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    opacity: 0.7;
+  }
+  .cert-badge.cert-warn { color: var(--orange); opacity: 1; }
+  .cert-badge.cert-danger { color: var(--red); opacity: 1; }
 
   .card-sparkline {
     width: 100%;

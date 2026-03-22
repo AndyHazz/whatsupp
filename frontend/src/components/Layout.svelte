@@ -50,7 +50,7 @@
     <a href="/" use:link class="topbar-logo">
       <svg class="logo-icon" viewBox="0 0 64 64" width="28" height="28">
         <rect width="64" height="64" rx="16" fill="#282a36"/>
-        <path d="M32 11 C32 11 34 11 36 13 L50 30 C52 33 50 36 47 36 L43 36 C41 36 40 37 40 39 L40 49 C40 52 38 54 35 54 L29 54 C26 54 24 52 24 49 L24 39 C24 37 23 36 21 36 L17 36 C14 36 12 33 14 30 L28 13 C30 11 32 11 32 11 Z" fill="#50fa7b"/>
+        <path d="M32 8 L54 32 L42 27 L42 50 C42 54 22 54 22 50 L22 27 L10 32 Z" fill="#50fa7b" stroke="#44475a" stroke-width="1" stroke-linejoin="round"/>
       </svg>
       <span>WhatsUpp</span>
     </a>
@@ -66,7 +66,7 @@
       <a href="/" use:link on:click={navClick}>
         <svg class="logo-icon" viewBox="0 0 64 64" width="32" height="32">
           <rect width="64" height="64" rx="14" fill="#282a36"/>
-          <path d="M32 10 L54 34 L43 34 L43 54 L21 54 L21 34 L10 34 Z" fill="#50fa7b" stroke="#44475a" stroke-width="1.5" stroke-linejoin="round"/>
+          <path d="M32 8 L54 32 L42 27 L42 50 C42 54 22 54 22 50 L22 27 L10 32 Z" fill="#50fa7b" stroke="#44475a" stroke-width="1.5" stroke-linejoin="round"/>
         </svg>
         <h2>WhatsUpp</h2>
       </a>
@@ -84,7 +84,7 @@
         <span class="ws-dot"></span>
         {$wsConnected ? 'Live' : 'Disconnected'}
         {#if serverVersion}
-          <span class="version">{serverVersion}</span>
+          <a href="https://github.com/andyhazz/whatsupp" target="_blank" rel="noopener noreferrer" class="version">{serverVersion}</a>
         {/if}
       </div>
       <button class="logout-btn" on:click={logout}>Sign Out</button>
@@ -206,6 +206,13 @@
     margin-left: auto;
     font-size: 0.7rem;
     opacity: 0.7;
+    color: var(--fg-muted);
+    text-decoration: none;
+  }
+  .version:hover {
+    color: var(--purple);
+    opacity: 1;
+    text-decoration: none;
   }
 
   .logout-btn {
@@ -225,7 +232,7 @@
   }
 
   .content {
-    padding: var(--gap);
+    padding: 20px 24px 24px;
     overflow-x: hidden;
   }
 

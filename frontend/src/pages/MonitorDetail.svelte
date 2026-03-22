@@ -14,6 +14,8 @@
   let loading = true;
   let error = '';
   let rangeSeconds = 86400; // 24h default
+  let avgLatency = null;
+  let windowUptime = null;
 
   async function loadData() {
     loading = true;
@@ -31,10 +33,22 @@
       monitor = m;
       incidents = (inc || []).filter(i => i.monitor === name);
 
-      // Build uPlot data arrays
-      const timestamps = (results || []).map(r => r.timestamp);
-      const latencies  = (results || []).map(r => r.latency_ms);
+      // Build uPlot data arrays + compute stats for the window
+      const rows = results || [];
+      const timestamps = rows.map(r => r.timestamp);
+      const latencies  = rows.map(r => r.latency_ms);
       chartData = [timestamps, latencies];
+
+      // Compute avg latency (exclude zeros/nulls for down results)
+      const validLatencies = rows.filter(r => r.status === 'up' && r.latency_ms > 0).map(r => r.latency_ms);
+      avgLatency = validLatencies.length > 0
+        ? validLatencies.reduce((a, b) => a + b, 0) / validLatencies.length
+        : null;
+
+      // Compute uptime % for this window
+      const total = rows.length;
+      const up = rows.filter(r => r.status === 'up').length;
+      windowUptime = total > 0 ? (up / total) * 100 : null;
     } catch (e) {
       error = e.message;
     } finally {
@@ -102,7 +116,26 @@
 
     <div class="chart-section">
       <div class="chart-controls">
-        <h2>Response Time</h2>
+        <div class="chart-stats">
+          <h2>Response Time</h2>
+          {#if avgLatency != null || windowUptime != null}
+            <div class="stat-pills">
+              {#if avgLatency != null}
+                <span class="stat-pill">Avg <strong>{Math.round(avgLatency)}<span class="stat-unit">ms</span></strong></span>
+              {/if}
+              {#if windowUptime != null}
+                <span class="stat-pill" class:good={windowUptime >= 99} class:warn={windowUptime < 99 && windowUptime >= 95} class:bad={windowUptime < 95}>
+                  Uptime <strong>{windowUptime.toFixed(2)}%</strong>
+                </span>
+              {/if}
+              {#if monitor.cert_days_left != null}
+                <span class="stat-pill" class:cert-warn={monitor.cert_days_left <= 14} class:cert-danger={monitor.cert_days_left <= 3}>
+                  SSL {monitor.cert_days_left}<span class="stat-unit">d</span>
+                </span>
+              {/if}
+            </div>
+          {/if}
+        </div>
         <TimeRangeSelector selected={rangeSeconds} on:change={(e) => { rangeSeconds = e.detail; loadData(); }} />
       </div>
       <Chart data={chartData} label="Latency" unit="ms" height={350} bands={chartBands} />
@@ -162,7 +195,39 @@
     flex-wrap: wrap;
     gap: 8px;
   }
-  .chart-controls h2 { font-size: 1.1rem; }
+  .chart-stats {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .chart-stats h2 { font-size: 1.1rem; }
+  .stat-pills {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .stat-pill {
+    font-size: 0.8rem;
+    color: var(--fg-muted);
+    background: rgba(248, 248, 242, 0.05);
+    padding: 2px 10px;
+    border-radius: 12px;
+  }
+  .stat-pill strong {
+    color: var(--cyan);
+    font-weight: 600;
+  }
+  .stat-pill.good strong { color: var(--green); }
+  .stat-pill.warn strong { color: var(--orange); }
+  .stat-pill.bad strong { color: var(--red); }
+  .stat-pill.cert-warn { color: var(--orange); }
+  .stat-pill.cert-danger { color: var(--red); }
+  .stat-unit {
+    font-size: 0.65rem;
+    font-weight: 400;
+    opacity: 0.7;
+  }
 
   .incidents-section {
     background: var(--bg-card);

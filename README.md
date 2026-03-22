@@ -18,32 +18,24 @@ Self-hosted infrastructure monitoring in a single Go binary. Monitors HTTP endpo
 - **Svelte 5 SPA** with Dracula theme, uPlot charts, embedded in the binary
 - **SQLite WAL** — no database server needed
 
-## Quick Start
+## Docker Setup (Recommended)
+
+### 1. Create directories and config
 
 ```bash
-# Build
-cd frontend && npm install && npm run build && cd ..
-cp -r frontend/dist internal/web/dist
-go build -o whatsupp ./cmd/whatsupp/
-
-# Run
-./whatsupp serve -config config.example.yml
+mkdir -p whatsupp/config && cd whatsupp
 ```
 
-Or with Docker:
-
-```bash
-docker compose up -d
-```
-
-## Configuration
-
-Copy `config.example.yml` and customise:
+Copy the example config into `config/config.yml` and edit to suit your setup:
 
 ```yaml
 server:
   listen: ":8080"
   db_path: "/data/whatsupp.db"
+
+auth:
+  initial_username: "admin"
+  initial_password: "${WHATSUPP_ADMIN_PASSWORD}"
 
 monitors:
   - name: "Website"
@@ -74,19 +66,139 @@ alerting:
 
 Environment variables in `${VAR}` syntax are expanded at load time.
 
-## Agent Mode
-
-Run on each host you want to monitor:
+### 2. Create `.env` file
 
 ```bash
-# Generate config
-./whatsupp agent init --hub https://hub:8080 --key your-agent-key
+WHATSUPP_ADMIN_PASSWORD=changeme
+NTFY_URL=https://ntfy.example.com
+NTFY_TOPIC=whatsupp
+NTFY_USERNAME=
+NTFY_PASSWORD=
+AGENT_KEY_SERVER1=change-this-to-a-random-key
+```
 
-# Run
+### 3. Create `docker-compose.yml`
+
+```yaml
+services:
+  whatsupp:
+    image: ghcr.io/andyhazz/whatsupp:latest
+    container_name: whatsupp
+    restart: unless-stopped
+    command: serve
+    cap_add:
+      - NET_RAW    # Required for ICMP ping checks
+    volumes:
+      - ./config:/etc/whatsupp
+      - whatsupp-data:/data
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  whatsupp-data:
+```
+
+### 4. Start
+
+```bash
+docker compose up -d
+```
+
+Open `http://your-host:8080` and log in with the credentials from your config.
+
+### Building from source
+
+If you prefer to build the image locally instead of using the pre-built one:
+
+```bash
+git clone https://github.com/andyhazz/whatsupp.git && cd whatsupp
+docker compose up -d --build
+```
+
+The multi-stage Dockerfile builds the Svelte frontend and Go binary, producing a minimal Alpine image.
+
+### Updating
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+The SQLite database is stored in the `whatsupp-data` volume and persists across updates.
+
+## Agent Setup
+
+Deploy the agent on each host you want to collect system metrics from (CPU, memory, disk, network, temperature, Docker containers).
+
+### With Docker
+
+Create `docker-compose.agent.yml` on the target host:
+
+```yaml
+services:
+  whatsupp-agent:
+    image: ghcr.io/andyhazz/whatsupp:latest
+    container_name: whatsupp-agent
+    restart: unless-stopped
+    command: agent
+    environment:
+      - WHATSUPP_HUB_URL=https://your-hub:8080
+      - WHATSUPP_AGENT_KEY=your-agent-key
+      - DOCKER_HOST=tcp://docker-proxy:2375
+    volumes:
+      - /:/hostfs:ro
+    pid: host
+    depends_on:
+      - docker-proxy
+
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy
+    container_name: docker-proxy
+    restart: unless-stopped
+    environment:
+      - CONTAINERS=1
+      - POST=0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+```
+
+The agent mounts the host filesystem read-only at `/hostfs` for disk/temperature metrics and uses `pid: host` for process visibility. Docker metrics are collected via a socket proxy that only permits read-only container listing.
+
+```bash
+docker compose -f docker-compose.agent.yml up -d
+```
+
+### Without Docker
+
+```bash
+./whatsupp agent init --hub https://your-hub:8080 --key your-agent-key
 ./whatsupp agent -config /etc/whatsupp/agent.yml
 ```
 
-Collects CPU, memory, disk, network, temperature, and Docker container metrics every 30s.
+### Hub configuration
+
+Add a matching agent entry in the hub's `config.yml`:
+
+```yaml
+agents:
+  - name: "server1"
+    key: "${AGENT_KEY_SERVER1}"
+```
+
+## Quick Start (without Docker)
+
+```bash
+cd frontend && npm install && npm run build && cd ..
+cp -r frontend/dist internal/web/dist
+go build -o whatsupp ./cmd/whatsupp/
+./whatsupp serve -config config.example.yml
+```
 
 ## Architecture
 

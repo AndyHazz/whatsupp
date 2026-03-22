@@ -522,3 +522,26 @@ func (s *Store) IsMuted(name string) (bool, error) {
 	err := s.db.QueryRow(`SELECT COUNT(*) FROM alert_mutes WHERE name = ?`, name).Scan(&count)
 	return count > 0, err
 }
+
+// Get24hUptimeAll returns the 24h uptime percentage for all monitors.
+func (s *Store) Get24hUptimeAll() (map[string]float64, error) {
+	cutoff := time.Now().Unix() - 86400
+	rows, err := s.db.Query(
+		`SELECT monitor, ROUND(100.0 * SUM(CASE WHEN status = 'up' THEN 1 ELSE 0 END) / COUNT(*), 2)
+		 FROM check_results WHERE timestamp >= ? GROUP BY monitor`, cutoff,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make(map[string]float64)
+	for rows.Next() {
+		var name string
+		var pct float64
+		if err := rows.Scan(&name, &pct); err != nil {
+			return nil, err
+		}
+		result[name] = pct
+	}
+	return result, rows.Err()
+}

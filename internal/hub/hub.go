@@ -254,10 +254,18 @@ func (h *Hub) stopAPI(ctx context.Context) {
 
 // --- api.HubState implementation ---
 
+type certMeta struct {
+	CertDaysLeft *int `json:"cert_days_left,omitempty"`
+}
+
 // MonitorStatuses returns the current status of all monitors.
 func (h *Hub) MonitorStatuses() map[string]api.MonitorStatus {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
+
+	// Fetch 24h uptime from DB
+	uptimes, _ := h.store.Get24hUptimeAll()
+
 	result := make(map[string]api.MonitorStatus, len(h.monitorStates))
 	for name, ms := range h.monitorStates {
 		status := "unknown"
@@ -269,18 +277,31 @@ func (h *Hub) MonitorStatuses() map[string]api.MonitorStatus {
 		}
 		var latencyMs float64
 		var lastCheck int64
+		var certDays *int
 		if r, ok := h.lastResults[name]; ok {
 			latencyMs = r.LatencyMs
-			lastCheck = time.Now().Unix() // approximate
+			lastCheck = time.Now().Unix()
+			// Extract cert days from metadata
+			if r.MetadataJSON != "" {
+				var cm certMeta
+				if json.Unmarshal([]byte(r.MetadataJSON), &cm) == nil {
+					certDays = cm.CertDaysLeft
+				}
+			}
+		}
+		uptimePct := ms.UptimePct() // fallback
+		if u, ok := uptimes[name]; ok {
+			uptimePct = u
 		}
 		result[name] = api.MonitorStatus{
-			Name:      name,
-			Type:      h.monitorTypes[name],
-			Status:    status,
-			LatencyMs: latencyMs,
-			LastCheck: lastCheck,
-			UptimePct: ms.UptimePct(),
-			URL:       h.monitorURLs[name],
+			Name:         name,
+			Type:         h.monitorTypes[name],
+			Status:       status,
+			LatencyMs:    latencyMs,
+			LastCheck:    lastCheck,
+			UptimePct:    uptimePct,
+			URL:          h.monitorURLs[name],
+			CertDaysLeft: certDays,
 		}
 	}
 	return result
@@ -294,6 +315,9 @@ func (h *Hub) MonitorStatus(name string) (api.MonitorStatus, bool) {
 	if !ok {
 		return api.MonitorStatus{}, false
 	}
+
+	uptimes, _ := h.store.Get24hUptimeAll()
+
 	status := "unknown"
 	switch ms.Status {
 	case StatusUp:
@@ -303,18 +327,30 @@ func (h *Hub) MonitorStatus(name string) (api.MonitorStatus, bool) {
 	}
 	var latencyMs float64
 	var lastCheck int64
+	var certDays *int
 	if r, ok := h.lastResults[name]; ok {
 		latencyMs = r.LatencyMs
 		lastCheck = time.Now().Unix()
+		if r.MetadataJSON != "" {
+			var cm certMeta
+			if json.Unmarshal([]byte(r.MetadataJSON), &cm) == nil {
+				certDays = cm.CertDaysLeft
+			}
+		}
+	}
+	uptimePct := ms.UptimePct()
+	if u, ok := uptimes[name]; ok {
+		uptimePct = u
 	}
 	return api.MonitorStatus{
-		Name:      name,
-		Type:      h.monitorTypes[name],
-		Status:    status,
-		LatencyMs: latencyMs,
-		LastCheck: lastCheck,
-		UptimePct: ms.UptimePct(),
-		URL:       h.monitorURLs[name],
+		Name:         name,
+		Type:         h.monitorTypes[name],
+		Status:       status,
+		LatencyMs:    latencyMs,
+		LastCheck:    lastCheck,
+		UptimePct:    uptimePct,
+		URL:          h.monitorURLs[name],
+		CertDaysLeft: certDays,
 	}, true
 }
 
