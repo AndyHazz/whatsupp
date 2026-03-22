@@ -21,7 +21,7 @@
     { key: 'disk',    label: 'Disk Usage',    names: 'disk',                 unit: '%',  color: dracula.orange, yMax: 100 },
     { key: 'net',     label: 'Network',       names: 'net',                  unit: 'B/s', color: dracula.cyan },
     { key: 'temp',    label: 'Temperature',   names: 'temp',                 unit: '°C', color: dracula.red },
-    { key: 'battery', label: 'Battery',       names: 'battery.charge_pct',   unit: '%',  color: dracula.yellow, yMax: 100 },
+    { key: 'battery', label: 'Battery',       names: 'battery.charge_pct',   unit: '%',  color: dracula.yellow, yMin: 0, yMax: 100 },
   ];
 
   let chartsData = {};
@@ -194,7 +194,8 @@
               unit={cat.unit}
               color={cat.color}
               height={250}
-              yMax={cat.yMax || null}
+              yMin={cat.yMin ?? null}
+              yMax={cat.yMax ?? null}
             />
           </div>
         {/if}

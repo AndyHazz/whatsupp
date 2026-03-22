@@ -11,6 +11,7 @@
   export let height = 300;
   export let fillAlpha = 0.1;
   export let bands = []; // array of { from: unixTs, to: unixTs } for downtime periods
+  export let yMin = null; // optional fixed Y-axis minimum
   export let yMax = null; // optional fixed Y-axis maximum
 
   let container;
@@ -69,7 +70,7 @@
     },
     scales: {
       x: { time: true },
-      y: { auto: true, ...(yMax != null ? { range: (u, min, max) => [Math.min(min, 0), yMax] } : {}) },
+      y: { auto: true, ...((yMin != null || yMax != null) ? { range: (u, dMin, dMax) => [yMin != null ? yMin : dMin, yMax != null ? yMax : dMax] } : {}) },
     },
     axes: [
       {
