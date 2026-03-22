@@ -148,9 +148,12 @@ func (c *DockerCollector) Collect(ctx context.Context) ([]Metric, error) {
 		currentIO[name] = snap
 
 		// Rate metrics (delta from previous sample)
+		// Guard against counter resets (container restart) — skip if current < previous
 		if c.prevIO != nil && !c.prevTime.IsZero() {
 			elapsed := now.Sub(c.prevTime).Seconds()
-			if prev, ok := c.prevIO[name]; ok && elapsed > 0 {
+			if prev, ok := c.prevIO[name]; ok && elapsed > 0 &&
+				netRx >= prev.netRx && netTx >= prev.netTx &&
+				blkRead >= prev.blkRead && blkWrite >= prev.blkWrite {
 				metrics = append(metrics,
 					Metric{Name: DockerMetric(name, "net_rx_bytes_sec"), Value: float64(netRx-prev.netRx) / elapsed},
 					Metric{Name: DockerMetric(name, "net_tx_bytes_sec"), Value: float64(netTx-prev.netTx) / elapsed},
