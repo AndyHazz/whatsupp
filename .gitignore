@@ -7,3 +7,7 @@ frontend/dist/
 frontend/node_modules/
 # Keep internal/web/dist/ tracked (placeholder for go:embed)
 # The real dist is built by npm and copied in CI/Docker
+
+# Claude Code working files
+.superpowers/
+docs/superpowers/
