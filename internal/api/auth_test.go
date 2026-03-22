@@ -130,7 +130,10 @@ func (a *testStoreAdapter) GetSecurityBaselines() ([]SecurityBaseline, error)   
 func (a *testStoreAdapter) UpdateSecurityBaseline(target string, portsJSON string, updatedAt time.Time) error {
 	return nil
 }
-func (a *testStoreAdapter) Backup(destPath string) error { return nil }
+func (a *testStoreAdapter) Backup(destPath string) error                { return nil }
+func (a *testStoreAdapter) GetMutedNames() (map[string]bool, error)    { return nil, nil }
+func (a *testStoreAdapter) SetMute(name string) error                  { return nil }
+func (a *testStoreAdapter) RemoveMute(name string) error               { return nil }
 
 // --- Password hashing tests ---
 

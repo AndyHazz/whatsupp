@@ -11,6 +11,14 @@ type Store interface {
 	IncidentStore
 	SecurityStore
 	BackupStore
+	MuteStore
+}
+
+// MuteStore provides alert mute persistence.
+type MuteStore interface {
+	GetMutedNames() (map[string]bool, error)
+	SetMute(name string) error
+	RemoveMute(name string) error
 }
 
 // SessionStore is the interface for session persistence (read).
@@ -83,6 +91,10 @@ type HubState interface {
 	ReloadConfig() error
 	// SendTestNotification sends a test alert.
 	SendTestNotification() error
+	// MuteAlerts mutes notifications for the given name.
+	MuteAlerts(name string)
+	// UnmuteAlerts unmutes notifications for the given name.
+	UnmuteAlerts(name string)
 }
 
 // --- Data types ---
@@ -127,6 +139,7 @@ type MonitorStatus struct {
 	LatencyMs float64 `json:"latency_ms"`
 	LastCheck int64   `json:"last_check"`
 	UptimePct float64 `json:"uptime_pct"` // 24h uptime
+	URL       string  `json:"url,omitempty"`
 }
 
 type AgentHeartbeat struct {

@@ -81,10 +81,10 @@ func (h *Handlers) GetMonitor(w http.ResponseWriter, r *http.Request) {
 }
 
 // selectCheckResultTier picks the storage tier based on the requested time range.
-// <=48h → raw, <=30d → hourly, >30d → daily
+// <=6h → raw, <=30d → hourly, >30d → daily
 func selectCheckResultTier(duration time.Duration) string {
 	switch {
-	case duration <= 48*time.Hour:
+	case duration <= 6*time.Hour:
 		return "raw"
 	case duration <= 30*24*time.Hour:
 		return "hourly"
@@ -94,14 +94,14 @@ func selectCheckResultTier(duration time.Duration) string {
 }
 
 // selectAgentMetricTier picks the storage tier based on the requested time range.
-// <=48h → raw, <=7d → 5min, <=90d → hourly, >90d → daily
+// <=3h → raw, <=48h → 5min, <=14d → hourly, >14d → daily
 func selectAgentMetricTier(duration time.Duration) string {
 	switch {
-	case duration <= 48*time.Hour:
+	case duration <= 3*time.Hour:
 		return "raw"
-	case duration <= 7*24*time.Hour:
+	case duration <= 48*time.Hour:
 		return "5min"
-	case duration <= 90*24*time.Hour:
+	case duration <= 14*24*time.Hour:
 		return "hourly"
 	default:
 		return "daily"
@@ -218,22 +218,37 @@ func (h *Handlers) GetHostMetrics(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, "query failed", http.StatusInternalServerError)
 			return
 		}
-		json.NewEncoder(w).Encode(results)
+		json.NewEncoder(w).Encode(flattenSummaries(name, results))
 	case "hourly":
 		results, err := h.store.GetAgentMetricsHourly(name, from, to, names)
 		if err != nil {
 			jsonError(w, "query failed", http.StatusInternalServerError)
 			return
 		}
-		json.NewEncoder(w).Encode(results)
+		json.NewEncoder(w).Encode(flattenSummaries(name, results))
 	case "daily":
 		results, err := h.store.GetAgentMetricsDaily(name, from, to, names)
 		if err != nil {
 			jsonError(w, "query failed", http.StatusInternalServerError)
 			return
 		}
-		json.NewEncoder(w).Encode(results)
+		json.NewEncoder(w).Encode(flattenSummaries(name, results))
 	}
+}
+
+// flattenSummaries converts aggregated metric summaries into the same shape as
+// raw metrics (timestamp + value) so the frontend doesn't need to handle two formats.
+func flattenSummaries(host string, summaries []AgentMetricSummary) []AgentMetric {
+	out := make([]AgentMetric, len(summaries))
+	for i, s := range summaries {
+		out[i] = AgentMetric{
+			Host:       host,
+			Timestamp:  s.Bucket,
+			MetricName: s.MetricName,
+			Value:      s.Avg,
+		}
+	}
+	return out
 }
 
 // ListIncidents handles GET /api/v1/incidents?from=&to=.
@@ -513,4 +528,52 @@ func (h *Handlers) PostAgentMetrics(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// ListMutes handles GET /api/v1/mutes.
+func (h *Handlers) ListMutes(w http.ResponseWriter, r *http.Request) {
+	muted, err := h.store.GetMutedNames()
+	if err != nil {
+		jsonError(w, "query failed", http.StatusInternalServerError)
+		return
+	}
+	names := make([]string, 0, len(muted))
+	for name := range muted {
+		names = append(names, name)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(names)
+}
+
+// ToggleMute handles PUT /api/v1/mutes/:name — toggles mute state.
+func (h *Handlers) ToggleMute(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+
+	muted, err := h.store.GetMutedNames()
+	if err != nil {
+		jsonError(w, "query failed", http.StatusInternalServerError)
+		return
+	}
+
+	nowMuted := false
+	if muted[name] {
+		if err := h.store.RemoveMute(name); err != nil {
+			jsonError(w, "unmute failed", http.StatusInternalServerError)
+			return
+		}
+		h.hub.UnmuteAlerts(name)
+	} else {
+		if err := h.store.SetMute(name); err != nil {
+			jsonError(w, "mute failed", http.StatusInternalServerError)
+			return
+		}
+		h.hub.MuteAlerts(name)
+		nowMuted = true
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"name":  name,
+		"muted": nowMuted,
+	})
 }

@@ -115,4 +115,9 @@ CREATE TABLE IF NOT EXISTS agent_heartbeats (
     host TEXT PRIMARY KEY,
     last_seen_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS alert_mutes (
+    name TEXT PRIMARY KEY,
+    muted_at INTEGER NOT NULL
+);
 `

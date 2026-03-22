@@ -1,29 +1,51 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { link } from '../lib/router.js';
+  import { link, navigate } from '../lib/router.js';
   import { api } from '../lib/api.js';
   import { onMessage } from '../lib/ws.js';
   import StatusBadge from '../components/StatusBadge.svelte';
   import Sparkline from '../components/Sparkline.svelte';
   import Skeleton from '../components/Skeleton.svelte';
 
+  function goToMonitor(name) {
+    navigate('/monitors/' + encodeURIComponent(name));
+  }
+
   let monitors = [];
   let loading = true;
   let error = '';
+  let mutedNames = new Set();
 
   // Map of monitor name -> recent latency values for sparkline
   let sparklines = {};
   let sparklineStatuses = {};
   let viewMode = 'cards'; // 'cards' | 'list'
 
+  async function toggleMute(name) {
+    try {
+      const result = await api.toggleMute(name);
+      if (result.muted) {
+        mutedNames.add(name);
+      } else {
+        mutedNames.delete(name);
+      }
+      mutedNames = mutedNames; // trigger reactivity
+    } catch { /* ignore */ }
+  }
+
   onMount(async () => {
     try {
-      monitors = (await api.getMonitors()).sort((a, b) => {
+      const [monitorsData, mutes] = await Promise.all([
+        api.getMonitors(),
+        api.getMutes(),
+      ]);
+      monitors = monitorsData.sort((a, b) => {
         // DOWN monitors first, then alphabetical
         if (a.status === 'down' && b.status !== 'down') return -1;
         if (a.status !== 'down' && b.status === 'down') return 1;
         return a.name.localeCompare(b.name);
       });
+      mutedNames = new Set(mutes || []);
       // Fetch last 1h of results for each monitor for sparklines
       const now = Math.floor(Date.now() / 1000);
       const oneHourAgo = now - 3600;
@@ -96,9 +118,13 @@
     {#if viewMode === 'cards'}
     <div class="grid">
       {#each monitors as m}
-        <a href="/monitors/{encodeURIComponent(m.name)}" use:link class="card" class:down={m.status === 'down'}>
+        <div class="card" class:down={m.status === 'down'} on:click={() => goToMonitor(m.name)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && goToMonitor(m.name)}>
           <div class="card-header">
-            <span class="monitor-name">{m.name}</span>
+            {#if m.url}
+              <a href={m.url} target="_blank" rel="noopener noreferrer" class="monitor-name service-link" on:click|stopPropagation>{m.name}</a>
+            {:else}
+              <span class="monitor-name">{m.name}</span>
+            {/if}
             <StatusBadge status={m.status} />
           </div>
           <div class="card-body">
@@ -114,24 +140,52 @@
               {/if}
             </div>
           </div>
-          <div class="card-footer muted">
-            {m.type} &middot; {m.interval || '60s'}
+          <div class="card-footer">
+            <span class="footer-info">{m.type} &middot; {m.interval || '60s'}</span>
+            <button
+              class="mute-btn"
+              class:is-muted={mutedNames.has(m.name)}
+              title={mutedNames.has(m.name) ? 'Unmute notifications' : 'Mute notifications'}
+              on:click|stopPropagation={() => toggleMute(m.name)}
+            >
+              {#if mutedNames.has(m.name)}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              {:else}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              {/if}
+            </button>
           </div>
-        </a>
+        </div>
       {/each}
     </div>
     {:else}
     <div class="list">
       {#each monitors as m}
-        <a href="/monitors/{encodeURIComponent(m.name)}" use:link class="list-row" class:down={m.status === 'down'}>
+        <div class="list-row" class:down={m.status === 'down'} on:click={() => goToMonitor(m.name)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && goToMonitor(m.name)}>
           <StatusBadge status={m.status} />
-          <span class="list-name">{m.name}</span>
+          {#if m.url}
+            <a href={m.url} target="_blank" rel="noopener noreferrer" class="list-name service-link" on:click|stopPropagation>{m.name}</a>
+          {:else}
+            <span class="list-name">{m.name}</span>
+          {/if}
           <span class="list-latency">{m.latency_ms != null ? Math.round(m.latency_ms) + 'ms' : '—'}</span>
           <span class="list-uptime" class:good={m.uptime_pct >= 99} class:warn={m.uptime_pct < 99 && m.uptime_pct >= 95} class:bad={m.uptime_pct < 95}>
             {m.uptime_pct != null ? m.uptime_pct.toFixed(1) + '%' : '—'}
           </span>
           <span class="list-type muted">{m.type}</span>
-        </a>
+          <button
+            class="mute-btn"
+            class:is-muted={mutedNames.has(m.name)}
+            title={mutedNames.has(m.name) ? 'Unmute notifications' : 'Mute notifications'}
+            on:click|stopPropagation={() => toggleMute(m.name)}
+          >
+            {#if mutedNames.has(m.name)}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            {:else}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            {/if}
+          </button>
+        </div>
       {/each}
     </div>
     {/if}
@@ -180,9 +234,9 @@
     align-items: center;
     gap: 12px;
     padding: 10px 16px;
-    text-decoration: none;
     color: var(--fg);
     border-bottom: 1px solid var(--border-subtle);
+    cursor: pointer;
     transition: background-color 0.15s ease;
   }
   .list-row:last-child { border-bottom: none; }
@@ -227,10 +281,10 @@
     background: var(--bg-card);
     border-radius: var(--radius);
     padding: 16px;
-    text-decoration: none;
     color: var(--fg);
     border: 1px solid var(--border-subtle);
     box-shadow: var(--shadow-card);
+    cursor: pointer;
     transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
   }
   .card:hover {
@@ -254,6 +308,16 @@
   .monitor-name {
     font-weight: 600;
     font-size: 1.05rem;
+  }
+
+  .service-link {
+    color: var(--fg);
+    text-decoration: none;
+    transition: color 0.15s ease;
+  }
+  .service-link:hover {
+    color: var(--purple);
+    text-decoration: underline;
   }
 
   .card-body {
@@ -289,9 +353,39 @@
   .uptime.bad  { color: var(--red); }
 
   .card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .footer-info {
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.8px;
+    color: var(--fg-muted);
+  }
+
+  .mute-btn {
+    background: none;
+    border: none;
+    color: var(--fg-muted);
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    opacity: 0.4;
+    transition: opacity 0.15s ease, color 0.15s ease;
+  }
+  .mute-btn:hover {
+    opacity: 1;
+  }
+  .mute-btn.is-muted {
+    opacity: 0.8;
+    color: var(--orange);
+  }
+  .mute-btn.is-muted:hover {
+    opacity: 1;
   }
 
   .muted { color: var(--fg-muted); }

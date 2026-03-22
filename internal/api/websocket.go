@@ -79,21 +79,22 @@ func (h *WSHub) Run() {
 			h.mu.Unlock()
 
 		case message := <-h.broadcast:
+			// Snapshot client list to avoid lock inversion during eviction
 			h.mu.RLock()
-			for client := range h.clients {
+			snapshot := make([]*wsClient, 0, len(h.clients))
+			for c := range h.clients {
+				snapshot = append(snapshot, c)
+			}
+			h.mu.RUnlock()
+
+			for _, client := range snapshot {
 				select {
 				case client.send <- message:
 				default:
-					// Client too slow — disconnect
-					h.mu.RUnlock()
-					h.mu.Lock()
-					delete(h.clients, client)
-					close(client.send)
-					h.mu.Unlock()
-					h.mu.RLock()
+					// Client too slow — schedule disconnect
+					h.unregister <- client
 				}
 			}
-			h.mu.RUnlock()
 
 		case <-h.quit:
 			h.mu.Lock()

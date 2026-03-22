@@ -111,6 +111,10 @@ func NewRouter(cfg RouterConfig) RouterResult {
 			r.Get("/security/baselines", h.ListSecurityBaselines)
 			r.Post("/security/baselines/{target}", h.AcceptBaseline)
 
+			// Alert mutes
+			r.Get("/mutes", h.ListMutes)
+			r.Put("/mutes/{name}", h.ToggleMute)
+
 			// Admin
 			r.Get("/admin/backup", h.Backup)
 

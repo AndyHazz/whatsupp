@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 )
@@ -48,6 +49,7 @@ func (p *PushClient) Send(ctx context.Context, batch MetricBatch) error {
 
 	switch {
 	case resp.StatusCode >= 200 && resp.StatusCode < 300:
+		io.Copy(io.Discard, resp.Body) // drain so transport can reuse connection
 		return nil
 	case resp.StatusCode == 401:
 		return fmt.Errorf("unauthorized: invalid agent key")

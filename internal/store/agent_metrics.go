@@ -222,7 +222,7 @@ func (s *Store) GetStaleAgents(threshold time.Time) ([]StaleAgent, error) {
 // AggregateAgentMetrics5Min aggregates raw agent metrics into 5-minute buckets.
 func (s *Store) AggregateAgentMetrics5Min(from, to time.Time) error {
 	_, err := s.db.Exec(`
-		INSERT OR REPLACE INTO agent_metrics_5min (host, bucket, metric_name, avg, min, max)
+		INSERT INTO agent_metrics_5min (host, bucket, metric_name, avg, min, max)
 		SELECT host,
 		       (timestamp / 300) * 300 AS bucket,
 		       metric_name,
@@ -230,6 +230,8 @@ func (s *Store) AggregateAgentMetrics5Min(from, to time.Time) error {
 		FROM agent_metrics
 		WHERE timestamp >= ? AND timestamp < ?
 		GROUP BY host, bucket, metric_name
+		ON CONFLICT(host, bucket, metric_name) DO UPDATE SET
+		  avg=excluded.avg, min=excluded.min, max=excluded.max
 	`, from.Unix(), to.Unix())
 	return err
 }
@@ -237,7 +239,7 @@ func (s *Store) AggregateAgentMetrics5Min(from, to time.Time) error {
 // AggregateAgentMetricsHourly aggregates 5-min agent metrics into hourly buckets.
 func (s *Store) AggregateAgentMetricsHourly(hourStart, hourEnd int64) error {
 	_, err := s.db.Exec(`
-		INSERT OR REPLACE INTO agent_metrics_hourly (host, hour, metric_name, avg, min, max)
+		INSERT INTO agent_metrics_hourly (host, hour, metric_name, avg, min, max)
 		SELECT host,
 		       ? AS hour,
 		       metric_name,
@@ -245,6 +247,8 @@ func (s *Store) AggregateAgentMetricsHourly(hourStart, hourEnd int64) error {
 		FROM agent_metrics_5min
 		WHERE bucket >= ? AND bucket < ?
 		GROUP BY host, metric_name
+		ON CONFLICT(host, hour, metric_name) DO UPDATE SET
+		  avg=excluded.avg, min=excluded.min, max=excluded.max
 	`, hourStart, hourStart, hourEnd)
 	return err
 }
@@ -252,7 +256,7 @@ func (s *Store) AggregateAgentMetricsHourly(hourStart, hourEnd int64) error {
 // AggregateAgentMetricsDaily aggregates hourly agent metrics into daily buckets.
 func (s *Store) AggregateAgentMetricsDaily(dayStart, dayEnd int64) error {
 	_, err := s.db.Exec(`
-		INSERT OR REPLACE INTO agent_metrics_daily (host, day, metric_name, avg, min, max)
+		INSERT INTO agent_metrics_daily (host, day, metric_name, avg, min, max)
 		SELECT host,
 		       ? AS day,
 		       metric_name,
@@ -260,6 +264,8 @@ func (s *Store) AggregateAgentMetricsDaily(dayStart, dayEnd int64) error {
 		FROM agent_metrics_hourly
 		WHERE hour >= ? AND hour < ?
 		GROUP BY host, metric_name
+		ON CONFLICT(host, day, metric_name) DO UPDATE SET
+		  avg=excluded.avg, min=excluded.min, max=excluded.max
 	`, dayStart, dayStart, dayEnd)
 	return err
 }

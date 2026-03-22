@@ -120,8 +120,24 @@ func (a *StoreAdapter) GetCheckResultsHourly(monitor string, from, to time.Time)
 }
 
 func (a *StoreAdapter) GetCheckResultsDaily(monitor string, from, to time.Time) ([]api.CheckResultSummary, error) {
-	// Daily aggregation — reuse hourly for now if daily not yet available
-	return nil, nil
+	results, err := a.s.GetCheckResultsDaily(monitor, from.Unix(), to.Unix())
+	if err != nil {
+		return nil, err
+	}
+	out := make([]api.CheckResultSummary, len(results))
+	for i, r := range results {
+		out[i] = api.CheckResultSummary{
+			Monitor:      r.Monitor,
+			Bucket:       r.Hour,
+			AvgLatency:   r.AvgLatency,
+			MinLatency:   r.MinLatency,
+			MaxLatency:   r.MaxLatency,
+			SuccessCount: r.SuccessCount,
+			FailCount:    r.FailCount,
+			UptimePct:    r.UptimePct,
+		}
+	}
+	return out, nil
 }
 
 // --- HostStore ---
@@ -277,6 +293,20 @@ func (a *StoreAdapter) GetSecurityBaselines() ([]api.SecurityBaseline, error) {
 
 func (a *StoreAdapter) UpdateSecurityBaseline(target string, portsJSON string, updatedAt time.Time) error {
 	return a.s.UpsertSecurityBaseline(target, portsJSON, updatedAt.Unix())
+}
+
+// --- MuteStore ---
+
+func (a *StoreAdapter) GetMutedNames() (map[string]bool, error) {
+	return a.s.GetMutedNames()
+}
+
+func (a *StoreAdapter) SetMute(name string) error {
+	return a.s.SetMute(name)
+}
+
+func (a *StoreAdapter) RemoveMute(name string) error {
+	return a.s.RemoveMute(name)
 }
 
 // --- BackupStore ---

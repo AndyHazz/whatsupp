@@ -25,6 +25,7 @@ type dockerIOSnapshot struct {
 type DockerCollector struct {
 	dockerHost string
 	mu         sync.Mutex
+	cli        *client.Client
 	prevIO     map[string]dockerIOSnapshot
 	prevTime   time.Time
 }
@@ -35,21 +36,34 @@ func NewDockerCollector(dockerHost string) *DockerCollector {
 
 func (c *DockerCollector) Name() string { return "docker" }
 
-func (c *DockerCollector) Collect(ctx context.Context) ([]Metric, error) {
+// getClient returns a cached Docker client, creating one on first use.
+func (c *DockerCollector) getClient() (*client.Client, error) {
+	if c.cli != nil {
+		return c.cli, nil
+	}
 	opts := []client.Opt{client.FromEnv, client.WithAPIVersionNegotiation()}
 	if c.dockerHost != "" {
 		opts = append(opts, client.WithHost(c.dockerHost))
 	}
-
 	cli, err := client.NewClientWithOpts(opts...)
+	if err != nil {
+		return nil, err
+	}
+	c.cli = cli
+	return cli, nil
+}
+
+func (c *DockerCollector) Collect(ctx context.Context) ([]Metric, error) {
+	cli, err := c.getClient()
 	if err != nil {
 		log.Printf("docker collector: cannot create client: %v", err)
 		return nil, nil // non-fatal
 	}
-	defer cli.Close()
 
 	containers, err := cli.ContainerList(ctx, container.ListOptions{All: true})
 	if err != nil {
+		// Reset client on error so next call reconnects
+		c.cli = nil
 		log.Printf("docker collector: cannot list containers: %v", err)
 		return nil, nil // non-fatal
 	}
@@ -96,9 +110,9 @@ func (c *DockerCollector) Collect(ctx context.Context) ([]Metric, error) {
 			continue
 		}
 
-		// CPU & memory (existing)
+		// CPU & memory
 		cpuPct := CalculateDockerCPUPercent(&statsJSON)
-		memUsage := float64(statsJSON.MemoryStats.Usage)
+		memUsage := calculateDockerMemUsage(&statsJSON)
 		memLimit := float64(statsJSON.MemoryStats.Limit)
 		memPct := 0.0
 		if memLimit > 0 {
@@ -168,6 +182,30 @@ func (c *DockerCollector) Collect(ctx context.Context) ([]Metric, error) {
 	c.prevTime = now
 
 	return metrics, nil
+}
+
+// calculateDockerMemUsage returns memory usage excluding kernel page cache,
+// matching the value shown by `docker stats`. On cgroup v2 it subtracts
+// inactive_file; on cgroup v1 it subtracts cache.
+func calculateDockerMemUsage(stats *types.StatsJSON) float64 {
+	usage := stats.MemoryStats.Usage
+
+	// cgroup v2: Stats contains "inactive_file"
+	if v, ok := stats.MemoryStats.Stats["inactive_file"]; ok {
+		if v <= usage {
+			return float64(usage - v)
+		}
+		return float64(usage)
+	}
+
+	// cgroup v1: Stats contains "cache"
+	if v, ok := stats.MemoryStats.Stats["cache"]; ok {
+		if v <= usage {
+			return float64(usage - v)
+		}
+	}
+
+	return float64(usage)
 }
 
 // CalculateDockerCPUPercent computes CPU % from Docker stats JSON.

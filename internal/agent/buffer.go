@@ -26,9 +26,9 @@ func (b *MetricBuffer) Add(batch MetricBatch) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	// Evict batches older than maxAge
+	// Evict batches older than maxAge (new slice lets GC collect old backing array)
 	cutoff := time.Now().Add(-b.maxAge)
-	valid := b.batches[:0]
+	var valid []MetricBatch
 	for _, existing := range b.batches {
 		if existing.Timestamp.After(cutoff) {
 			valid = append(valid, existing)

@@ -81,10 +81,16 @@ func Open(path string) (*Store, error) {
 		return nil, fmt.Errorf("create db directory: %w", err)
 	}
 
-	db, err := sql.Open("sqlite3", path+"?_journal_mode=WAL&_busy_timeout=5000&_synchronous=NORMAL&_foreign_keys=ON")
+	db, err := sql.Open("sqlite3", path+"?_journal_mode=WAL&_busy_timeout=5000&_synchronous=NORMAL&_foreign_keys=ON&_cache_size=-16000")
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
+
+	// SQLite supports one writer at a time; constraining the pool avoids
+	// connection churn and lock contention on small instances.
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	db.SetConnMaxLifetime(0)
 
 	// Run schema migration
 	if _, err := db.Exec(schema); err != nil {

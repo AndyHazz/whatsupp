@@ -240,6 +240,39 @@ func (s *Store) AggregateCheckResultsDaily(dayStart, dayEnd int64) error {
 	return err
 }
 
+// GetCheckResultsDaily returns daily aggregated results for a monitor.
+func (s *Store) GetCheckResultsDaily(monitor string, from, to int64) ([]CheckResultHourly, error) {
+	rows, err := s.db.Query(
+		`SELECT monitor, day, avg_latency, min_latency, max_latency, success_count, fail_count, uptime_pct
+		 FROM check_results_daily WHERE monitor = ? AND day >= ? AND day <= ? ORDER BY day`,
+		monitor, from, to,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []CheckResultHourly
+	for rows.Next() {
+		var r CheckResultHourly
+		var avgLat, minLat, maxLat sql.NullFloat64
+		if err := rows.Scan(&r.Monitor, &r.Hour, &avgLat, &minLat, &maxLat, &r.SuccessCount, &r.FailCount, &r.UptimePct); err != nil {
+			return nil, err
+		}
+		if avgLat.Valid {
+			r.AvgLatency = avgLat.Float64
+		}
+		if minLat.Valid {
+			r.MinLatency = minLat.Float64
+		}
+		if maxLat.Valid {
+			r.MaxLatency = maxLat.Float64
+		}
+		results = append(results, r)
+	}
+	return results, rows.Err()
+}
+
 // DeleteOldHourlyCheckResults deletes hourly results older than cutoff.
 func (s *Store) DeleteOldHourlyCheckResults(cutoff int64) (int64, error) {
 	res, err := s.db.Exec(`DELETE FROM check_results_hourly WHERE hour < ?`, cutoff)
@@ -287,6 +320,31 @@ func (s *Store) CountConsecutiveFailures(monitor string) (int, error) {
 		count++
 	}
 	return count, nil
+}
+
+// GetAllOpenIncidents returns all unresolved incidents.
+func (s *Store) GetAllOpenIncidents() ([]Incident, error) {
+	rows, err := s.db.Query(
+		`SELECT id, monitor, started_at, resolved_at, cause FROM incidents WHERE resolved_at IS NULL ORDER BY started_at DESC`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var incidents []Incident
+	for rows.Next() {
+		var inc Incident
+		var resolvedAt sql.NullInt64
+		if err := rows.Scan(&inc.ID, &inc.Monitor, &inc.StartedAt, &resolvedAt, &inc.Cause); err != nil {
+			return nil, fmt.Errorf("scan incident: %w", err)
+		}
+		if resolvedAt.Valid {
+			inc.ResolvedAt = &resolvedAt.Int64
+		}
+		incidents = append(incidents, inc)
+	}
+	return incidents, rows.Err()
 }
 
 // GetIncidents returns incidents in a time range.
@@ -420,4 +478,47 @@ func (s *Store) RenewSession(token string, expiresAt time.Time) error {
 		expiresAt.Unix(), token,
 	)
 	return err
+}
+
+// --- Alert mutes ---
+
+// GetMutedNames returns the set of all muted monitor/agent names.
+func (s *Store) GetMutedNames() (map[string]bool, error) {
+	rows, err := s.db.Query(`SELECT name FROM alert_mutes`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	muted := make(map[string]bool)
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		muted[name] = true
+	}
+	return muted, rows.Err()
+}
+
+// SetMute adds a name to the mute list.
+func (s *Store) SetMute(name string) error {
+	_, err := s.db.Exec(
+		`INSERT OR IGNORE INTO alert_mutes (name, muted_at) VALUES (?, ?)`,
+		name, time.Now().Unix(),
+	)
+	return err
+}
+
+// RemoveMute removes a name from the mute list.
+func (s *Store) RemoveMute(name string) error {
+	_, err := s.db.Exec(`DELETE FROM alert_mutes WHERE name = ?`, name)
+	return err
+}
+
+// IsMuted checks if a name is muted.
+func (s *Store) IsMuted(name string) (bool, error) {
+	var count int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM alert_mutes WHERE name = ?`, name).Scan(&count)
+	return count > 0, err
 }

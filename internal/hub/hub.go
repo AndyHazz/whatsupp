@@ -29,6 +29,7 @@ type Hub struct {
 	incidentManager *IncidentManager
 	monitorStates   map[string]*MonitorState
 	monitorTypes    map[string]string // monitor name -> type (http, ping, port)
+	monitorURLs     map[string]string // monitor name -> service URL (for linking)
 	lastResults     map[string]checks.Result
 	resultCh        chan checks.Result
 	stopCh          chan struct{}
@@ -54,9 +55,10 @@ func New(cfg *config.Config, configPath string) (*Hub, error) {
 
 	resultCh := make(chan checks.Result, 100)
 
-	// Initialize monitor states and type map
+	// Initialize monitor states, type map, and URL map
 	states := make(map[string]*MonitorState)
 	monTypes := make(map[string]string)
+	monURLs := make(map[string]string)
 	for _, m := range cfg.Monitors {
 		threshold := m.FailureThreshold
 		if threshold == 0 {
@@ -64,6 +66,9 @@ func New(cfg *config.Config, configPath string) (*Hub, error) {
 		}
 		states[m.Name] = NewMonitorState(m.Name, threshold)
 		monTypes[m.Name] = m.Type
+		if m.URL != "" {
+			monURLs[m.Name] = m.URL
+		}
 	}
 
 	// Create scheduler and register checkers
@@ -103,6 +108,7 @@ func New(cfg *config.Config, configPath string) (*Hub, error) {
 		incidentManager: NewIncidentManager(s),
 		monitorStates:   states,
 		monitorTypes:    monTypes,
+		monitorURLs:     monURLs,
 		lastResults:     make(map[string]checks.Result),
 		resultCh:        resultCh,
 		stopCh:          make(chan struct{}),
@@ -113,16 +119,13 @@ func New(cfg *config.Config, configPath string) (*Hub, error) {
 // or were fixed by config changes (e.g. insecure_skip_verify, HTTP status tolerance).
 func (h *Hub) resolveStaleIncidents() {
 	now := time.Now().Unix()
-	// Get all open incidents and resolve ones whose monitors are currently UP or removed
-	incidents, err := h.store.GetIncidents(0, now+1)
+	// Only fetch open incidents — avoids scanning the entire history
+	openIncidents, err := h.store.GetAllOpenIncidents()
 	if err != nil {
 		log.Printf("hub: resolve stale incidents error: %v", err)
 		return
 	}
-	for _, inc := range incidents {
-		if inc.ResolvedAt != nil {
-			continue // already resolved
-		}
+	for _, inc := range openIncidents {
 		// Resolve if monitor no longer exists or is UP
 		h.mu.RLock()
 		ms, exists := h.monitorStates[inc.Monitor]
@@ -140,6 +143,14 @@ func (h *Hub) resolveStaleIncidents() {
 // Run starts the hub: scheduler, result processor, downsampler, API server.
 func (h *Hub) Run() error {
 	log.Printf("hub: starting with %d monitors", len(h.cfg.Monitors))
+
+	// Load alert mutes from DB
+	if muted, err := h.store.GetMutedNames(); err != nil {
+		log.Printf("hub: load mutes error: %v", err)
+	} else {
+		h.alerter.SetMuted(muted)
+		log.Printf("hub: loaded %d muted alerts", len(muted))
+	}
 
 	// Resolve any stale incidents from previous runs
 	h.resolveStaleIncidents()
@@ -279,6 +290,7 @@ func (h *Hub) MonitorStatuses() map[string]api.MonitorStatus {
 			LatencyMs: latencyMs,
 			LastCheck: lastCheck,
 			UptimePct: ms.UptimePct(),
+			URL:       h.monitorURLs[name],
 		}
 	}
 	return result
@@ -312,12 +324,23 @@ func (h *Hub) MonitorStatus(name string) (api.MonitorStatus, bool) {
 		LatencyMs: latencyMs,
 		LastCheck: lastCheck,
 		UptimePct: ms.UptimePct(),
+		URL:       h.monitorURLs[name],
 	}, true
 }
 
 // SendTestNotification sends a test alert via ntfy.
 func (h *Hub) SendTestNotification() error {
 	return h.alerter.SendTest()
+}
+
+// MuteAlerts mutes notifications for the given name.
+func (h *Hub) MuteAlerts(name string) {
+	h.alerter.Mute(name)
+}
+
+// UnmuteAlerts unmutes notifications for the given name.
+func (h *Hub) UnmuteAlerts(name string) {
+	h.alerter.Unmute(name)
 }
 
 // ReloadConfig re-reads the YAML config and applies changes.
@@ -337,6 +360,7 @@ func (h *Hub) ReloadConfig() error {
 	// Rebuild monitor states — keep existing state for monitors that still exist
 	newStates := make(map[string]*MonitorState)
 	newTypes := make(map[string]string)
+	newURLs := make(map[string]string)
 	for _, m := range cfg.Monitors {
 		threshold := m.FailureThreshold
 		if threshold == 0 {
@@ -350,9 +374,13 @@ func (h *Hub) ReloadConfig() error {
 			newStates[m.Name] = NewMonitorState(m.Name, threshold)
 		}
 		newTypes[m.Name] = m.Type
+		if m.URL != "" {
+			newURLs[m.Name] = m.URL
+		}
 	}
 	h.monitorStates = newStates
 	h.monitorTypes = newTypes
+	h.monitorURLs = newURLs
 
 	// Clean up lastResults for removed monitors
 	for name := range h.lastResults {

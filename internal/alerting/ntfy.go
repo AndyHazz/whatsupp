@@ -24,6 +24,7 @@ type NtfyClient struct {
 
 	mu            sync.Mutex
 	lastDownAlert map[string]time.Time
+	muted         map[string]bool
 }
 
 type ntfyMessage struct {
@@ -42,11 +43,44 @@ func NewNtfyClient(cfg NtfyConfig) *NtfyClient {
 		config:        cfg,
 		client:        &http.Client{Timeout: 10 * time.Second},
 		lastDownAlert: make(map[string]time.Time),
+		muted:         make(map[string]bool),
 	}
+}
+
+// SetMuted replaces the muted set (called on startup and after toggles).
+func (n *NtfyClient) SetMuted(muted map[string]bool) {
+	n.mu.Lock()
+	n.muted = muted
+	n.mu.Unlock()
+}
+
+// IsMuted checks if a monitor/agent name is muted.
+func (n *NtfyClient) IsMuted(name string) bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.muted[name]
+}
+
+// Mute adds a name to the muted set.
+func (n *NtfyClient) Mute(name string) {
+	n.mu.Lock()
+	n.muted[name] = true
+	n.mu.Unlock()
+}
+
+// Unmute removes a name from the muted set.
+func (n *NtfyClient) Unmute(name string) {
+	n.mu.Lock()
+	delete(n.muted, name)
+	n.mu.Unlock()
 }
 
 func (n *NtfyClient) SendDown(monitor, cause string) error {
 	n.mu.Lock()
+	if n.muted[monitor] {
+		n.mu.Unlock()
+		return nil
+	}
 	lastSent, exists := n.lastDownAlert[monitor]
 	now := time.Now()
 	if exists && now.Sub(lastSent) < n.config.ReminderInterval {
@@ -68,8 +102,12 @@ func (n *NtfyClient) SendDown(monitor, cause string) error {
 
 func (n *NtfyClient) SendRecovery(monitor, downDuration string) error {
 	n.mu.Lock()
+	muted := n.muted[monitor]
 	delete(n.lastDownAlert, monitor)
 	n.mu.Unlock()
+	if muted {
+		return nil
+	}
 
 	msg := ntfyMessage{
 		Topic:    n.config.Topic,
@@ -104,6 +142,9 @@ func (n *NtfyClient) SendPortGone(target string, port int) error {
 }
 
 func (n *NtfyClient) SendSSLExpiry(domain string, daysLeft int) error {
+	if n.IsMuted(domain) {
+		return nil
+	}
 	msg := ntfyMessage{
 		Topic:    n.config.Topic,
 		Title:    fmt.Sprintf("SSL cert expiring: %s", domain),

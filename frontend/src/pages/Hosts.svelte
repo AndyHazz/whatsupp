@@ -10,10 +10,28 @@
   let hostMetrics = {}; // host -> { metricName: value }
   let loading = true;
   let error = '';
+  let mutedNames = new Set();
+
+  async function toggleMute(name) {
+    try {
+      const result = await api.toggleMute(name);
+      if (result.muted) {
+        mutedNames.add(name);
+      } else {
+        mutedNames.delete(name);
+      }
+      mutedNames = mutedNames;
+    } catch { /* ignore */ }
+  }
 
   onMount(async () => {
     try {
-      hosts = await api.getHosts();
+      const [hostsData, mutes] = await Promise.all([
+        api.getHosts(),
+        api.getMutes(),
+      ]);
+      hosts = hostsData;
+      mutedNames = new Set(mutes || []);
 
       // Fetch latest metrics for each host (last 2 minutes)
       const now = Math.floor(Date.now() / 1000);
@@ -81,7 +99,21 @@
         <a href="/hosts/{encodeURIComponent(h.host)}" use:link class="card">
           <div class="card-header">
             <span class="host-name">{h.host}</span>
-            <span class="last-seen">{formatLastSeen(h.last_seen_at)}</span>
+            <div class="header-right">
+              <button
+                class="mute-btn"
+                class:is-muted={mutedNames.has('agent:' + h.host)}
+                title={mutedNames.has('agent:' + h.host) ? 'Unmute notifications' : 'Mute notifications'}
+                on:click|preventDefault|stopPropagation={() => toggleMute('agent:' + h.host)}
+              >
+                {#if mutedNames.has('agent:' + h.host)}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                {:else}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                {/if}
+              </button>
+              <span class="last-seen">{formatLastSeen(h.last_seen_at)}</span>
+            </div>
           </div>
           <div class="gauges">
             {#if getMetric(h.host, 'cpu.usage_pct') != null}
@@ -147,7 +179,24 @@
     margin-bottom: 12px;
   }
   .host-name { font-weight: 600; font-size: 1.05rem; }
+  .header-right { display: flex; align-items: center; gap: 8px; }
   .last-seen { font-size: 0.8rem; color: var(--fg-muted); }
+
+  .mute-btn {
+    background: none;
+    border: none;
+    color: var(--fg-muted);
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    opacity: 0.4;
+    transition: opacity 0.15s ease, color 0.15s ease;
+  }
+  .mute-btn:hover { opacity: 1; }
+  .mute-btn.is-muted { opacity: 0.8; color: var(--orange); }
+  .mute-btn.is-muted:hover { opacity: 1; }
 
   .gauges {
     display: flex;

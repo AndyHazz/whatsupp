@@ -164,6 +164,11 @@ func (m *mockStore) Backup(destPath string) error {
 	return nil
 }
 
+// MuteStore methods
+func (m *mockStore) GetMutedNames() (map[string]bool, error) { return nil, nil }
+func (m *mockStore) SetMute(name string) error               { return nil }
+func (m *mockStore) RemoveMute(name string) error            { return nil }
+
 // mockHubState implements HubState for testing.
 type mockHubState struct {
 	statuses map[string]MonitorStatus
@@ -176,6 +181,8 @@ func (m *mockHubState) MonitorStatus(name string) (MonitorStatus, bool) {
 }
 func (m *mockHubState) ReloadConfig() error         { return nil }
 func (m *mockHubState) SendTestNotification() error  { return nil }
+func (m *mockHubState) MuteAlerts(name string)       {}
+func (m *mockHubState) UnmuteAlerts(name string)     {}
 
 // newMockStore creates an in-memory mock store with basic functionality.
 func newMockStore(t *testing.T) *mockStore {

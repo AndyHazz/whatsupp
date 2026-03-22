@@ -116,6 +116,10 @@ export const api = {
   // Admin
   getBackup: () => request('GET', '/admin/backup'),
 
+  // Alert mutes
+  getMutes:    ()     => request('GET', '/mutes'),
+  toggleMute:  (name) => request('PUT', `/mutes/${encodeURIComponent(name)}`),
+
   // Health
   getHealth: () => request('GET', '/health'),
 };
