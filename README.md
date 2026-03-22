@@ -11,7 +11,6 @@ Self-hosted infrastructure monitoring in a single Go binary. Monitors HTTP endpo
 - **SSL certificate expiry** warnings at configurable day thresholds
 - **Security scanning** — full 65535-port TCP connect scan with baseline drift detection
 - **Agent mode** — push CPU, memory, disk, network, temperature, and Docker metrics
-- **Prometheus scraping** — pull metrics from node-exporter endpoints
 - **Tiered data retention** — raw → 5min → hourly → daily downsampling
 - **REST API** with session auth, rate-limited login, and agent bearer tokens
 - **WebSocket** live updates for real-time dashboard

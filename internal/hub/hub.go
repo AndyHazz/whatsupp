@@ -159,9 +159,6 @@ func (h *Hub) Run() error {
 	// Start security scan scheduler (if targets configured)
 	h.startSecurityScans()
 
-	// Start scrape targets
-	h.startScrapeTargets()
-
 	// Start staleness checker
 	h.startStalenessChecker()
 
@@ -547,60 +544,6 @@ func (h *Hub) startSecurityScans() {
 
 	for _, target := range h.cfg.Security.Targets {
 		go h.runSecurityScanLoop(target)
-	}
-}
-
-// startScrapeTargets launches scrape loops for Prometheus endpoints.
-func (h *Hub) startScrapeTargets() {
-	if len(h.cfg.ScrapeTargets) == 0 {
-		return
-	}
-
-	for _, target := range h.cfg.ScrapeTargets {
-		go h.runScrapeLoop(target)
-	}
-}
-
-func (h *Hub) runScrapeLoop(target config.ScrapeTarget) {
-	sc := checks.NewScrapeCheck(target.Name, target.URL)
-	interval := target.Interval
-	if interval == 0 {
-		interval = 30 * time.Second
-	}
-
-	log.Printf("hub: scraping %s at %s every %s", target.Name, target.URL, interval)
-
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			metrics, err := sc.Execute(context.Background())
-			if err != nil {
-				log.Printf("hub: scrape %s error: %v", target.Name, err)
-				continue
-			}
-
-			// Convert to store metrics
-			storeMetrics := make([]store.Metric, len(metrics))
-			for i, m := range metrics {
-				storeMetrics[i] = store.Metric{Name: m.Name, Value: m.Value}
-			}
-
-			now := time.Now()
-			if err := h.store.InsertAgentMetricsBatch(target.Name, now, storeMetrics); err != nil {
-				log.Printf("hub: store scraped metrics for %s: %v", target.Name, err)
-			}
-			if err := h.store.UpsertHeartbeat(target.Name, now); err != nil {
-				log.Printf("hub: update heartbeat for %s: %v", target.Name, err)
-			}
-
-			log.Printf("hub: scraped %d metrics from %s", len(metrics), target.Name)
-
-		case <-h.stopCh:
-			return
-		}
 	}
 }
 

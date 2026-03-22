@@ -14,7 +14,6 @@ type Config struct {
     Auth          AuthConfig      `yaml:"auth"`
     Monitors      []Monitor       `yaml:"monitors"`
     Agents        []AgentConfig   `yaml:"agents"`
-    ScrapeTargets []ScrapeTarget  `yaml:"scrape_targets"`
     Security      SecurityConfig  `yaml:"security"`
     Alerting      AlertingConfig  `yaml:"alerting"`
 }
@@ -75,12 +74,6 @@ type ThresholdsConfig struct {
     DiskUsagePct         int           `yaml:"disk_usage_pct"`
     DiskHysteresisPct    int           `yaml:"disk_hysteresis_pct"`
     DownReminderInterval time.Duration `yaml:"down_reminder_interval"`
-}
-
-type ScrapeTarget struct {
-    Name     string        `yaml:"name"`
-    URL      string        `yaml:"url"`
-    Interval time.Duration `yaml:"interval"`
 }
 
 var envVarRe = regexp.MustCompile(`\$\{([^}]+)\}`)

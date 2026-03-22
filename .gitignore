@@ -11,3 +11,4 @@ frontend/node_modules/
 # Claude Code working files
 .superpowers/
 docs/superpowers/
+.vite/
