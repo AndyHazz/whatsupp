@@ -16,12 +16,12 @@
   let rangeSeconds = 3600; // default 1h since we have ~30min data so far
 
   const categories = [
-    { key: 'cpu',     label: 'CPU Usage',     names: 'cpu.usage_pct',        unit: '%',  color: dracula.purple },
-    { key: 'mem',     label: 'Memory Usage',  names: 'mem.usage_pct',        unit: '%',  color: dracula.pink },
-    { key: 'disk',    label: 'Disk Usage',    names: 'disk',                 unit: '%',  color: dracula.orange },
+    { key: 'cpu',     label: 'CPU Usage',     names: 'cpu.usage_pct',        unit: '%',  color: dracula.purple, yMax: 100 },
+    { key: 'mem',     label: 'Memory Usage',  names: 'mem.usage_pct',        unit: '%',  color: dracula.pink, yMax: 100 },
+    { key: 'disk',    label: 'Disk Usage',    names: 'disk',                 unit: '%',  color: dracula.orange, yMax: 100 },
     { key: 'net',     label: 'Network',       names: 'net',                  unit: 'B/s', color: dracula.cyan },
     { key: 'temp',    label: 'Temperature',   names: 'temp',                 unit: '°C', color: dracula.red },
-    { key: 'battery', label: 'Battery',       names: 'battery.charge_pct',   unit: '%',  color: dracula.yellow },
+    { key: 'battery', label: 'Battery',       names: 'battery.charge_pct',   unit: '%',  color: dracula.yellow, yMax: 100 },
   ];
 
   let chartsData = {};
@@ -194,6 +194,7 @@
               unit={cat.unit}
               color={cat.color}
               height={250}
+              yMax={cat.yMax || null}
             />
           </div>
         {/if}
