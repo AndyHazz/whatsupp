@@ -47,21 +47,23 @@ jobs:
       - name: Run tests
         run: go test ./... -count=1
 
-      - name: Build binaries
+      - name: Build binaries (parallel)
         run: |
-          # linux/amd64
+          LDFLAGS="-X github.com/andyhazz/whatsupp/internal/version.Version=${GITHUB_REF_NAME}"
+
           CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
-            go build -ldflags="-X github.com/andyhazz/whatsupp/internal/version.Version=${GITHUB_REF_NAME}" -o whatsupp-linux-amd64 ./cmd/whatsupp
-          tar czf whatsupp-linux-amd64.tar.gz whatsupp-linux-amd64 config.example.yml README.md
+            go build -ldflags="$LDFLAGS" -o whatsupp-linux-amd64 ./cmd/whatsupp &
 
-          # linux/arm64
           CGO_ENABLED=1 GOOS=linux GOARCH=arm64 CC=aarch64-linux-gnu-gcc \
-            go build -ldflags="-X github.com/andyhazz/whatsupp/internal/version.Version=${GITHUB_REF_NAME}" -o whatsupp-linux-arm64 ./cmd/whatsupp
-          tar czf whatsupp-linux-arm64.tar.gz whatsupp-linux-arm64 config.example.yml README.md
+            go build -ldflags="$LDFLAGS" -o whatsupp-linux-arm64 ./cmd/whatsupp &
 
-          # linux/armv7 (Raspberry Pi OS 32-bit)
           CGO_ENABLED=1 GOOS=linux GOARCH=arm GOARM=7 CC=arm-linux-gnueabihf-gcc \
-            go build -ldflags="-X github.com/andyhazz/whatsupp/internal/version.Version=${GITHUB_REF_NAME}" -o whatsupp-linux-armv7 ./cmd/whatsupp
+            go build -ldflags="$LDFLAGS" -o whatsupp-linux-armv7 ./cmd/whatsupp &
+
+          wait
+
+          tar czf whatsupp-linux-amd64.tar.gz whatsupp-linux-amd64 config.example.yml README.md
+          tar czf whatsupp-linux-arm64.tar.gz whatsupp-linux-arm64 config.example.yml README.md
           tar czf whatsupp-linux-armv7.tar.gz whatsupp-linux-armv7 config.example.yml README.md
 
       - name: Log in to GHCR

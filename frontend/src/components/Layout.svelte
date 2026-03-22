@@ -50,7 +50,7 @@
     <a href="/" use:link class="topbar-logo">
       <svg class="logo-icon" viewBox="0 0 64 64" width="28" height="28">
         <rect width="64" height="64" rx="16" fill="#282a36"/>
-        <path d="M32 8 L54 32 L42 27 L42 50 C42 54 22 54 22 50 L22 27 L10 32 Z" fill="#50fa7b" stroke="#44475a" stroke-width="1" stroke-linejoin="round"/>
+        <path d="M32 12 C38 12 54 18 54 23 C54 28 44 31 40 31 L37 51 C37 55 27 55 27 51 L24 31 C20 31 10 28 10 23 C10 18 26 12 32 12 Z" fill="#50fa7b"/>
       </svg>
       <span>WhatsUpp</span>
     </a>
@@ -66,7 +66,7 @@
       <a href="/" use:link on:click={navClick}>
         <svg class="logo-icon" viewBox="0 0 64 64" width="32" height="32">
           <rect width="64" height="64" rx="14" fill="#282a36"/>
-          <path d="M32 8 L54 32 L42 27 L42 50 C42 54 22 54 22 50 L22 27 L10 32 Z" fill="#50fa7b" stroke="#44475a" stroke-width="1.5" stroke-linejoin="round"/>
+          <path d="M32 12 C38 12 54 18 54 23 C54 28 44 31 40 31 L37 51 C37 55 27 55 27 51 L24 31 C20 31 10 28 10 23 C10 18 26 12 32 12 Z" fill="#50fa7b"/>
         </svg>
         <h2>WhatsUpp</h2>
       </a>
