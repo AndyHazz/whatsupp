@@ -1,0 +1,10 @@
+# Dockerfile.ci — used by CI to skip the multi-stage build.
+# The binary is already compiled by the workflow; just package it.
+FROM alpine:3.19
+RUN apk add --no-cache ca-certificates tzdata
+COPY whatsupp-linux-amd64 /usr/local/bin/whatsupp
+RUN mkdir -p /data /etc/whatsupp
+VOLUME ["/data"]
+EXPOSE 8080
+ENTRYPOINT ["whatsupp"]
+CMD ["serve"]

@@ -37,6 +37,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: true
 
       - name: Install CGO cross-compilers
         run: |
@@ -81,9 +82,8 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: Dockerfile.ci
           push: true
-          build-args: |
-            VERSION=${{ steps.meta.outputs.ref_name }}
           tags: |
             ${{ steps.meta.outputs.image }}:latest
             ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.ref_name }}
