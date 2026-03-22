@@ -356,6 +356,13 @@ func (h *Handlers) AcceptBaseline(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
+// GetScanSchedules handles GET /api/v1/security/schedules.
+func (h *Handlers) GetScanSchedules(w http.ResponseWriter, r *http.Request) {
+	schedules := h.hub.ScanSchedules()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(schedules)
+}
+
 // GetConfig handles GET /api/v1/config — returns current YAML config as string.
 func (h *Handlers) GetConfig(w http.ResponseWriter, r *http.Request) {
 	data, err := os.ReadFile(h.configPath)

@@ -104,6 +104,7 @@ export const api = {
   getScans:          ()       => request('GET', '/security/scans'),
   getBaselines:      ()       => request('GET', '/security/baselines'),
   updateBaseline:    (target) => request('POST', `/security/baselines/${encodeURIComponent(target)}`),
+  getScanSchedules:  ()       => request('GET', '/security/schedules'),
 
   // Account
   changePassword: (currentPassword, newPassword) =>

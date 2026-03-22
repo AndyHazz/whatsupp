@@ -15,6 +15,10 @@ const listeners = {
   check_result:  [],
   incident:      [],
   agent_metric:  [],
+  security_scan_start:     [],
+  security_scan_progress:  [],
+  security_scan_complete:  [],
+  security_scan_scheduled: [],
 };
 
 export function onMessage(type, callback) {

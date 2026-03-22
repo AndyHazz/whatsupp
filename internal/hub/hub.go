@@ -16,6 +16,12 @@ import (
 	"github.com/andyhazz/whatsupp/internal/store"
 )
 
+// ScanState tracks the progress of an active security scan.
+type ScanState struct {
+	Scanned int
+	Total   int
+}
+
 // Hub is the main orchestrator that ties together checks, storage,
 // state management, incidents, alerting, and downsampling.
 type Hub struct {
@@ -35,6 +41,8 @@ type Hub struct {
 	stopCh          chan struct{}
 	apiServer       *http.Server
 	wsHub           *api.WSHub
+	scanNextRun     map[string]int64      // target -> next run unix timestamp
+	scanProgress    map[string]*ScanState // target -> active scan state (nil if not scanning)
 }
 
 // New creates a Hub from config.
@@ -102,6 +110,8 @@ func New(cfg *config.Config, configPath string) (*Hub, error) {
 		lastResults:     make(map[string]checks.Result),
 		resultCh:        resultCh,
 		stopCh:          make(chan struct{}),
+		scanNextRun:     make(map[string]int64),
+		scanProgress:    make(map[string]*ScanState),
 	}, nil
 }
 
@@ -543,19 +553,97 @@ func (h *Hub) startSecurityScans() {
 	}
 
 	for _, target := range h.cfg.Security.Targets {
-		go h.runSecurityScanLoop(target)
+		go h.runSecurityScanSchedule(target)
 	}
 }
 
-func (h *Hub) runSecurityScanLoop(target config.SecurityTarget) {
+func (h *Hub) runSecurityScanSchedule(target config.SecurityTarget) {
+	// Run once immediately on startup
+	h.executeSecurityScan(target)
+
+	// If no schedule configured, don't repeat
+	if target.Schedule == "" {
+		return
+	}
+
+	for {
+		nextRun, err := nextCronTime(target.Schedule, time.Now())
+		if err != nil {
+			log.Printf("hub: invalid cron schedule for %s: %v", target.Host, err)
+			return
+		}
+
+		// Store next run time
+		h.mu.Lock()
+		h.scanNextRun[target.Host] = nextRun.Unix()
+		h.mu.Unlock()
+
+		// Broadcast schedule update
+		if h.wsHub != nil {
+			h.wsHub.Broadcast(api.WSMessage{
+				Type: "security_scan_scheduled",
+				Data: map[string]interface{}{
+					"target":   target.Host,
+					"next_run": nextRun.Unix(),
+				},
+			})
+		}
+
+		// Wait until next run
+		timer := time.NewTimer(time.Until(nextRun))
+		select {
+		case <-timer.C:
+			h.executeSecurityScan(target)
+		case <-h.stopCh:
+			timer.Stop()
+			return
+		}
+	}
+}
+
+func (h *Hub) executeSecurityScan(target config.SecurityTarget) {
 	scanner := &checks.SecurityScanner{
 		Host:        target.Host,
 		Concurrency: target.ScanConcurrency,
 		Timeout:     int(target.Timeout.Seconds()),
+		ProgressFn: func(scanned, total int) {
+			h.mu.Lock()
+			h.scanProgress[target.Host] = &ScanState{Scanned: scanned, Total: total}
+			h.mu.Unlock()
+
+			if h.wsHub != nil {
+				h.wsHub.Broadcast(api.WSMessage{
+					Type: "security_scan_progress",
+					Data: map[string]interface{}{
+						"target":  target.Host,
+						"scanned": scanned,
+						"total":   total,
+					},
+				})
+			}
+		},
 	}
 
 	log.Printf("hub: security scan of %s starting", target.Host)
+
+	// Broadcast scan start
+	if h.wsHub != nil {
+		h.wsHub.Broadcast(api.WSMessage{
+			Type: "security_scan_start",
+			Data: map[string]interface{}{
+				"target": target.Host,
+				"total":  65535,
+			},
+		})
+	}
+
 	openPorts, err := scanner.Scan()
+
+	// Clear progress
+	h.mu.Lock()
+	delete(h.scanProgress, target.Host)
+	h.mu.Unlock()
+
 	if err != nil {
 		log.Printf("hub: security scan of %s failed: %v", target.Host, err)
 		return
@@ -574,32 +662,67 @@ func (h *Hub) runSecurityScanLoop(target config.SecurityTarget) {
 		return
 	}
 
+	var newPorts, gonePorts []int
 	if baseline == nil {
-		// First scan — set as baseline
 		if err := h.store.UpsertSecurityBaseline(target.Host, string(portsJSON), now); err != nil {
 			log.Printf("hub: set initial baseline error: %v", err)
 		}
 		log.Printf("hub: security baseline set for %s: %v", target.Host, openPorts)
-		return
-	}
-
-	var baselinePorts []int
-	json.Unmarshal([]byte(baseline.ExpectedPortsJSON), &baselinePorts)
-
-	newPorts, gonePorts := checks.CompareBaseline(baselinePorts, openPorts)
-	for _, p := range newPorts {
-		if err := h.alerter.SendNewPort(target.Host, p); err != nil {
-			log.Printf("hub: alert new port error: %v", err)
+	} else {
+		var baselinePorts []int
+		json.Unmarshal([]byte(baseline.ExpectedPortsJSON), &baselinePorts)
+		newPorts, gonePorts = checks.CompareBaseline(baselinePorts, openPorts)
+		for _, p := range newPorts {
+			if err := h.alerter.SendNewPort(target.Host, p); err != nil {
+				log.Printf("hub: alert new port error: %v", err)
+			}
+		}
+		for _, p := range gonePorts {
+			if err := h.alerter.SendPortGone(target.Host, p); err != nil {
+				log.Printf("hub: alert port gone error: %v", err)
+			}
 		}
 	}
-	for _, p := range gonePorts {
-		if err := h.alerter.SendPortGone(target.Host, p); err != nil {
-			log.Printf("hub: alert port gone error: %v", err)
-		}
+
+	// Broadcast scan complete
+	if h.wsHub != nil {
+		h.wsHub.Broadcast(api.WSMessage{
+			Type: "security_scan_complete",
+			Data: map[string]interface{}{
+				"target":     target.Host,
+				"timestamp":  now,
+				"open_ports": openPorts,
+				"new_ports":  len(newPorts),
+				"gone_ports": len(gonePorts),
+			},
+		})
 	}
 
 	log.Printf("hub: security scan of %s complete: %d open ports, %d new, %d gone",
 		target.Host, len(openPorts), len(newPorts), len(gonePorts))
+}
+
+// ScanSchedules returns the next run time and progress for all security targets.
+func (h *Hub) ScanSchedules() map[string]api.ScanSchedule {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	result := make(map[string]api.ScanSchedule)
+	for _, t := range h.cfg.Security.Targets {
+		ss := api.ScanSchedule{
+			Target:   t.Host,
+			Schedule: t.Schedule,
+		}
+		if nextRun, ok := h.scanNextRun[t.Host]; ok {
+			ss.NextRun = nextRun
+		}
+		if prog, ok := h.scanProgress[t.Host]; ok && prog != nil {
+			ss.Scanning = true
+			ss.Scanned = prog.Scanned
+			ss.Total = prog.Total
+		}
+		result[t.Host] = ss
+	}
+	return result
 }
 
 func formatDuration(d time.Duration) string {

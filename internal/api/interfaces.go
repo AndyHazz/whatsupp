@@ -96,6 +96,18 @@ type HubState interface {
 	MuteAlerts(name string)
 	// UnmuteAlerts unmutes notifications for the given name.
 	UnmuteAlerts(name string)
+	// ScanSchedules returns the next run time and progress for all security targets.
+	ScanSchedules() map[string]ScanSchedule
+}
+
+// ScanSchedule holds scheduling and progress info for a security scan target.
+type ScanSchedule struct {
+	Target   string `json:"target"`
+	Schedule string `json:"schedule"`
+	NextRun  int64  `json:"next_run,omitempty"`
+	Scanning bool   `json:"scanning"`
+	Scanned  int    `json:"scanned,omitempty"`
+	Total    int    `json:"total,omitempty"`
 }
 
 // --- Data types ---

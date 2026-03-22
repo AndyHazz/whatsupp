@@ -186,6 +186,7 @@ func (m *mockHubState) ReloadConfig() error         { return nil }
 func (m *mockHubState) SendTestNotification() error  { return nil }
 func (m *mockHubState) MuteAlerts(name string)       {}
 func (m *mockHubState) UnmuteAlerts(name string)     {}
+func (m *mockHubState) ScanSchedules() map[string]ScanSchedule { return nil }
 
 // newMockStore creates an in-memory mock store with basic functionality.
 func newMockStore(t *testing.T) *mockStore {

@@ -110,6 +110,7 @@ func NewRouter(cfg RouterConfig) RouterResult {
 			r.Get("/security/scans", h.ListSecurityScans)
 			r.Get("/security/baselines", h.ListSecurityBaselines)
 			r.Post("/security/baselines/{target}", h.AcceptBaseline)
+			r.Get("/security/schedules", h.GetScanSchedules)
 
 			// Alert mutes
 			r.Get("/mutes", h.ListMutes)

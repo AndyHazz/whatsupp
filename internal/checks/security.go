@@ -5,6 +5,7 @@ import (
 	"net"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -14,6 +15,7 @@ type SecurityScanner struct {
 	Timeout     int
 	PortStart   int
 	PortEnd     int
+	ProgressFn  func(scanned, total int) // optional progress callback
 }
 
 func (s *SecurityScanner) Scan() ([]int, error) {
@@ -40,6 +42,13 @@ func (s *SecurityScanner) Scan() ([]int, error) {
 	sem := make(chan struct{}, concurrency)
 	var wg sync.WaitGroup
 
+	var scanned int64
+	total := portEnd - portStart + 1
+	reportInterval := total / 100
+	if reportInterval < 1 {
+		reportInterval = 1
+	}
+
 	for port := portStart; port <= portEnd; port++ {
 		wg.Add(1)
 		sem <- struct{}{}
@@ -54,6 +63,11 @@ func (s *SecurityScanner) Scan() ([]int, error) {
 				mu.Lock()
 				openPorts = append(openPorts, p)
 				mu.Unlock()
+			}
+
+			n := atomic.AddInt64(&scanned, 1)
+			if s.ProgressFn != nil && (n%int64(reportInterval) == 0 || n == int64(total)) {
+				s.ProgressFn(int(n), total)
 			}
 		}(port)
 	}
