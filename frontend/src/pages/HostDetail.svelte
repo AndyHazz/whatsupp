@@ -18,7 +18,7 @@
   const categories = [
     { key: 'cpu',     label: 'CPU Usage',     names: 'cpu.usage_pct',        unit: '%',  color: dracula.purple, yMax: 100 },
     { key: 'mem',     label: 'Memory Usage',  names: 'mem.usage_pct',        unit: '%',  color: dracula.pink, yMax: 100 },
-    { key: 'disk',    label: 'Disk Usage',    names: 'disk',                 unit: '%',  color: dracula.orange, yMax: 100 },
+    { key: 'disk',    label: 'Disk Usage',    names: 'disk',                 unit: '%',  color: dracula.orange, yMin: 0, yMax: 100 },
     { key: 'net',     label: 'Network',       names: 'net',                  unit: 'B/s', color: dracula.cyan },
     { key: 'temp',    label: 'Temperature',   names: 'temp',                 unit: '°C', color: dracula.red },
     { key: 'battery', label: 'Battery',       names: 'battery.charge_pct',   unit: '%',  color: dracula.yellow, yMin: 0, yMax: 100 },
