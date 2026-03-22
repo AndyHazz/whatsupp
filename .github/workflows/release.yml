@@ -42,14 +42,14 @@ jobs:
       - name: Install CGO cross-compilers
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf
+          sudo apt-get install -y gcc gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf libc6-dev-arm64-cross libc6-dev-armhf-cross
 
       - name: Run tests
         run: go test ./... -count=1
 
       - name: Build binaries (parallel)
         run: |
-          LDFLAGS="-X github.com/andyhazz/whatsupp/internal/version.Version=${GITHUB_REF_NAME}"
+          LDFLAGS="-X github.com/andyhazz/whatsupp/internal/version.Version=${GITHUB_REF_NAME} -linkmode external -extldflags '-static'"
 
           CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
             go build -ldflags="$LDFLAGS" -o whatsupp-linux-amd64 ./cmd/whatsupp &
