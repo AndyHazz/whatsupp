@@ -87,6 +87,12 @@
     position: relative;
     border-radius: var(--radius, 8px);
     box-shadow: 0 0 8px -2px var(--dot-color, transparent), inset 0 0 0 1px color-mix(in srgb, var(--dot-color, transparent) 15%, transparent);
+    min-width: 0;
+  }
+
+  /* When inside a grid, ensure the child fills the container */
+  .orbit-container > :global(*) {
+    height: 100%;
   }
 
   .orbit-dot {
