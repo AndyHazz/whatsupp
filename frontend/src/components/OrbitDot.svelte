@@ -86,6 +86,7 @@
   .orbit-container {
     position: relative;
     min-width: 0;
+    display: grid;
   }
 
   .orbit-dot {
