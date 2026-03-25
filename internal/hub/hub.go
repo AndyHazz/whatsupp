@@ -99,6 +99,8 @@ func New(cfg *config.Config, configPath string) (*Hub, error) {
 			checker = &checks.PingChecker{Host: m.Host, Count: 3, Timeout: 10}
 		case "port":
 			checker = &checks.PortChecker{Host: m.Host, Port: m.Port, Timeout: 10}
+		case "dns":
+			checker = &checks.DNSChecker{Host: m.Host, Port: m.Port, Query: m.Query, Timeout: 10}
 		}
 		if checker != nil {
 			sched.RegisterChecker(m.Name, checker)
@@ -463,6 +465,8 @@ func (h *Hub) ReloadConfig() error {
 			checker = &checks.PingChecker{Host: m.Host, Count: 3, Timeout: 10}
 		case "port":
 			checker = &checks.PortChecker{Host: m.Host, Port: m.Port, Timeout: 10}
+		case "dns":
+			checker = &checks.DNSChecker{Host: m.Host, Port: m.Port, Query: m.Query, Timeout: 10}
 		}
 		if checker != nil {
 			sched.RegisterChecker(m.Name, checker)

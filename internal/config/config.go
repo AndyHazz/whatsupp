@@ -34,6 +34,7 @@ type Monitor struct {
     URL                string        `yaml:"url,omitempty"`
     Host               string        `yaml:"host,omitempty"`
     Port               int           `yaml:"port,omitempty"`
+    Query              string        `yaml:"query,omitempty"` // dns: domain to resolve (default "google.com")
     Group              string        `yaml:"group,omitempty"` // agent hostname to group this monitor under
     Interval           time.Duration `yaml:"interval"`
     FailureThreshold   int           `yaml:"failure_threshold,omitempty"`
@@ -173,6 +174,10 @@ func validate(cfg *Config) error {
         case "port":
             if m.Host == "" || m.Port == 0 {
                 return fmt.Errorf("monitor %q: port type requires host and port", m.Name)
+            }
+        case "dns":
+            if m.Host == "" {
+                return fmt.Errorf("monitor %q: dns type requires host", m.Name)
             }
         default:
             return fmt.Errorf("monitor %q: unknown type %q", m.Name, m.Type)
