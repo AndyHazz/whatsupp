@@ -84,7 +84,10 @@
         <span class="ws-dot"></span>
         {$wsConnected ? 'Live' : 'Disconnected'}
         {#if serverVersion}
-          <a href="https://github.com/andyhazz/whatsupp" target="_blank" rel="noopener noreferrer" class="version">{serverVersion}</a>
+          <a href="https://github.com/andyhazz/whatsupp" target="_blank" rel="noopener noreferrer" class="version">
+            <svg viewBox="0 0 19 19" width="12" height="12" fill="currentColor"><use href="/icons.svg#github-icon"/></svg>
+            {serverVersion}
+          </a>
         {/if}
       </div>
       <button class="logout-btn" on:click={logout}>Sign Out</button>
@@ -208,6 +211,9 @@
     opacity: 0.7;
     color: var(--fg-muted);
     text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
   }
   .version:hover {
     color: var(--purple);

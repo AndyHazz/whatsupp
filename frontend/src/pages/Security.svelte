@@ -98,8 +98,11 @@
     if (diff <= 0) return 'now';
     if (diff < 3600) return `${Math.round(diff / 60)}m`;
     if (diff < 86400) return `${Math.round(diff / 3600)}h`;
-    const days = Math.round(diff / 86400);
-    return `${days}d`;
+    // Show day name + time for longer intervals so the cron schedule is visible
+    const d = new Date(ts * 1000);
+    const day = d.toLocaleDateString(undefined, { weekday: 'short' });
+    const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    return `${day} ${time}`;
   }
 
   function getDiff(scan, baseline) {
@@ -120,7 +123,7 @@
   <h1>Security</h1>
 
   {#if loading}
-    <Skeleton variant="card" count={2} />
+    <Skeleton variant="security" count={2} />
   {:else if error}
     <p class="error">{error}</p>
   {:else if scans.length === 0 && Object.keys(schedules).length === 0}

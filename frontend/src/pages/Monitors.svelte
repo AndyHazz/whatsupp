@@ -21,6 +21,24 @@
   let sparklineStatuses = {};
   let viewMode = 'cards'; // 'cards' | 'list'
 
+  // Group monitors by host
+  $: hostGroups = (() => {
+    const groups = {};
+    for (const m of monitors) {
+      const key = m.host || '';
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(m);
+    }
+    // Sort group keys: named hosts alphabetically, empty string last
+    const keys = Object.keys(groups).sort((a, b) => {
+      if (!a) return 1;
+      if (!b) return -1;
+      return a.localeCompare(b);
+    });
+    return keys.map(k => ({ host: k, monitors: groups[k] }));
+  })();
+  $: hasMultipleHosts = hostGroups.length > 1 || (hostGroups.length === 1 && hostGroups[0].host !== '');
+
   async function toggleMute(name) {
     try {
       const result = await api.toggleMute(name);
@@ -108,7 +126,7 @@
 
   {#if loading}
   <div class="grid">
-    <Skeleton variant="card" count={6} />
+    <Skeleton variant="monitor" count={6} />
   </div>
   {:else if error}
     <p class="error">{error}</p>
@@ -116,87 +134,97 @@
     <p class="muted">No monitors configured. Add monitors in Settings.</p>
   {:else}
     {#if viewMode === 'cards'}
-    <div class="grid">
-      {#each monitors as m}
-        <div class="card" class:down={m.status === 'down'} on:click={() => goToMonitor(m.name)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && goToMonitor(m.name)}>
-          <div class="card-top">
-            <div class="card-title">
-              {#if m.url}
-                <a href={m.url} target="_blank" rel="noopener noreferrer" class="monitor-name service-link" on:click|stopPropagation>{m.name}</a>
-              {:else}
-                <span class="monitor-name">{m.name}</span>
-              {/if}
+      {#each hasMultipleHosts ? hostGroups : [{ host: '', monitors }] as group}
+        {#if hasMultipleHosts}
+          <h2 class="host-group-label">{group.host || 'Other'}</h2>
+        {/if}
+        <div class="grid">
+          {#each group.monitors as m}
+            <div class="card" class:down={m.status === 'down'} on:click={() => goToMonitor(m.name)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && goToMonitor(m.name)}>
+              <div class="card-top">
+                <div class="card-title">
+                  {#if m.url}
+                    <a href={m.url} target="_blank" rel="noopener noreferrer" class="monitor-name service-link" on:click|stopPropagation>{m.name}</a>
+                  {:else}
+                    <span class="monitor-name">{m.name}</span>
+                  {/if}
+                </div>
+                <div class="card-stats">
+                  {#if m.latency_ms != null}
+                    <span class="latency">{Math.round(m.latency_ms)}<span class="unit">ms</span></span>
+                  {/if}
+                  <StatusBadge status={m.status} />
+                </div>
+              </div>
+              <div class="card-meta">
+                <div class="card-meta-left">
+                  {#if m.uptime_pct != null}
+                    <span class="uptime" class:good={m.uptime_pct >= 99} class:warn={m.uptime_pct < 99 && m.uptime_pct >= 95} class:bad={m.uptime_pct < 95}>
+                      {m.uptime_pct.toFixed(1)}%
+                    </span>
+                  {/if}
+                  {#if m.cert_days_left != null}
+                    <span class="cert-badge" class:cert-warn={m.cert_days_left <= 14} class:cert-danger={m.cert_days_left <= 3}>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                      {m.cert_days_left}d
+                    </span>
+                  {/if}
+                </div>
+                <button
+                  class="mute-btn"
+                  class:is-muted={mutedNames.has(m.name)}
+                  title={mutedNames.has(m.name) ? 'Unmute notifications' : 'Mute notifications'}
+                  on:click|stopPropagation={() => toggleMute(m.name)}
+                >
+                  {#if mutedNames.has(m.name)}
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  {:else}
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                  {/if}
+                </button>
+              </div>
+              <div class="card-sparkline">
+                <Sparkline data={sparklines[m.name] || []} statuses={sparklineStatuses[m.name] || []} width={260} height={36} />
+              </div>
             </div>
-            <div class="card-stats">
-              {#if m.latency_ms != null}
-                <span class="latency">{Math.round(m.latency_ms)}<span class="unit">ms</span></span>
-              {/if}
-              <StatusBadge status={m.status} />
-            </div>
-          </div>
-          <div class="card-meta">
-            <div class="card-meta-left">
-              {#if m.uptime_pct != null}
-                <span class="uptime" class:good={m.uptime_pct >= 99} class:warn={m.uptime_pct < 99 && m.uptime_pct >= 95} class:bad={m.uptime_pct < 95}>
-                  {m.uptime_pct.toFixed(1)}%
-                </span>
-              {/if}
-              {#if m.cert_days_left != null}
-                <span class="cert-badge" class:cert-warn={m.cert_days_left <= 14} class:cert-danger={m.cert_days_left <= 3}>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                  {m.cert_days_left}d
-                </span>
-              {/if}
-            </div>
-            <button
-              class="mute-btn"
-              class:is-muted={mutedNames.has(m.name)}
-              title={mutedNames.has(m.name) ? 'Unmute notifications' : 'Mute notifications'}
-              on:click|stopPropagation={() => toggleMute(m.name)}
-            >
-              {#if mutedNames.has(m.name)}
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-              {:else}
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-              {/if}
-            </button>
-          </div>
-          <div class="card-sparkline">
-            <Sparkline data={sparklines[m.name] || []} statuses={sparklineStatuses[m.name] || []} width={260} height={36} />
-          </div>
+          {/each}
         </div>
       {/each}
-    </div>
     {:else}
-    <div class="list">
-      {#each monitors as m}
-        <div class="list-row" class:down={m.status === 'down'} on:click={() => goToMonitor(m.name)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && goToMonitor(m.name)}>
-          <StatusBadge status={m.status} />
-          {#if m.url}
-            <a href={m.url} target="_blank" rel="noopener noreferrer" class="list-name service-link" on:click|stopPropagation>{m.name}</a>
-          {:else}
-            <span class="list-name">{m.name}</span>
-          {/if}
-          <span class="list-latency">{m.latency_ms != null ? Math.round(m.latency_ms) + 'ms' : '—'}</span>
-          <span class="list-uptime" class:good={m.uptime_pct >= 99} class:warn={m.uptime_pct < 99 && m.uptime_pct >= 95} class:bad={m.uptime_pct < 95}>
-            {m.uptime_pct != null ? m.uptime_pct.toFixed(1) + '%' : '—'}
-          </span>
-          <span class="list-type muted">{m.type}</span>
-          <button
-            class="mute-btn"
-            class:is-muted={mutedNames.has(m.name)}
-            title={mutedNames.has(m.name) ? 'Unmute notifications' : 'Mute notifications'}
-            on:click|stopPropagation={() => toggleMute(m.name)}
-          >
-            {#if mutedNames.has(m.name)}
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-            {:else}
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-            {/if}
-          </button>
+      {#each hasMultipleHosts ? hostGroups : [{ host: '', monitors }] as group}
+        {#if hasMultipleHosts}
+          <h2 class="host-group-label">{group.host || 'Other'}</h2>
+        {/if}
+        <div class="list">
+          {#each group.monitors as m}
+            <div class="list-row" class:down={m.status === 'down'} on:click={() => goToMonitor(m.name)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && goToMonitor(m.name)}>
+              <StatusBadge status={m.status} />
+              {#if m.url}
+                <a href={m.url} target="_blank" rel="noopener noreferrer" class="list-name service-link" on:click|stopPropagation>{m.name}</a>
+              {:else}
+                <span class="list-name">{m.name}</span>
+              {/if}
+              <span class="list-latency">{m.latency_ms != null ? Math.round(m.latency_ms) + 'ms' : '—'}</span>
+              <span class="list-uptime" class:good={m.uptime_pct >= 99} class:warn={m.uptime_pct < 99 && m.uptime_pct >= 95} class:bad={m.uptime_pct < 95}>
+                {m.uptime_pct != null ? m.uptime_pct.toFixed(1) + '%' : '—'}
+              </span>
+              <span class="list-type muted">{m.type}</span>
+              <button
+                class="mute-btn"
+                class:is-muted={mutedNames.has(m.name)}
+                title={mutedNames.has(m.name) ? 'Unmute notifications' : 'Mute notifications'}
+                on:click|stopPropagation={() => toggleMute(m.name)}
+              >
+                {#if mutedNames.has(m.name)}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                {:else}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                {/if}
+              </button>
+            </div>
+          {/each}
         </div>
       {/each}
-    </div>
     {/if}
   {/if}
 </div>
@@ -278,6 +306,18 @@
     text-align: right;
     font-size: 0.8rem;
     text-transform: uppercase;
+  }
+
+  .host-group-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 20px 0 8px;
+  }
+  .host-group-label:first-child {
+    margin-top: 0;
   }
 
   .grid {

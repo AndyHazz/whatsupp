@@ -33,18 +33,24 @@
     return fmtVal(v) + unit;
   }
 
-  function downtimeBandsPlugin(bands) {
+  // Use a ref so the draw hook always sees the latest bands without
+  // needing to destroy and recreate the chart when bands change.
+  let bandsRef = bands;
+  $: bandsRef = bands;
+
+  function downtimeBandsPlugin() {
     return {
       hooks: {
         draw: [
           (u) => {
+            if (!bandsRef.length) return;
             const ctx = u.ctx;
             const { left, top, width, height } = u.bbox;
 
             ctx.save();
             ctx.fillStyle = 'rgba(255, 85, 85, 0.12)';
 
-            for (const band of bands) {
+            for (const band of bandsRef) {
               const x0 = Math.max(u.valToPos(band.from, 'x', true), left);
               const x1 = Math.min(u.valToPos(band.to, 'x', true), left + width);
               if (x1 > x0) {
@@ -120,7 +126,7 @@
     legend: {
       live: true,
     },
-    plugins: bands.length > 0 ? [downtimeBandsPlugin(bands)] : [],
+    plugins: [downtimeBandsPlugin()],
   });
 
   function create() {

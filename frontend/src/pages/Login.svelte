@@ -21,7 +21,13 @@
 
 <div class="login-page">
   <form class="login-card" on:submit|preventDefault={handleSubmit}>
-    <h1>WhatsUpp</h1>
+    <div class="login-brand">
+      <svg viewBox="0 0 64 64" width="48" height="48">
+        <rect width="64" height="64" rx="14" fill="#282a36"/>
+        <path d="M32 8 C36 8 52 22 52 27 C52 32 43 34 40 34 L37 52 C37 56 27 56 27 52 L24 34 C21 34 12 32 12 27 C12 22 28 8 32 8 Z" fill="#50fa7b"/>
+      </svg>
+      <h1>WhatsUpp</h1>
+    </div>
     <p class="subtitle">Network Monitor</p>
 
     {#if error}
@@ -63,6 +69,13 @@
     gap: 16px;
     border: 1px solid var(--border-subtle);
     box-shadow: var(--shadow-card);
+  }
+
+  .login-brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
   }
 
   h1 {

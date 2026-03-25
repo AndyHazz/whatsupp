@@ -3,9 +3,10 @@
   export let value = 0;   // 0-100
   export let label = '';
   export let size = 80;
+  export let disabled = false;
 
-  $: pct = Math.min(Math.max(value, 0), 100);
-  $: color = pct >= 90 ? 'var(--red)' : pct >= 75 ? 'var(--orange)' : 'var(--green)';
+  $: pct = disabled ? 0 : Math.min(Math.max(value, 0), 100);
+  $: color = disabled ? 'var(--fg-muted)' : pct >= 90 ? 'var(--red)' : pct >= 75 ? 'var(--orange)' : 'var(--green)';
   $: circumference = 2 * Math.PI * 34;
   $: offset = circumference * (1 - pct / 100);
 
@@ -28,8 +29,8 @@
       transform="rotate(-90 40 40)"
     />
     <text x="40" y="40" text-anchor="middle" dominant-baseline="central"
-      fill="var(--fg)" font-size="14" font-weight="600">
-      {Math.round(pct)}%
+      fill={disabled ? 'var(--fg-muted)' : 'var(--fg)'} font-size="14" font-weight="600">
+      {disabled ? '—' : `${Math.round(pct)}%`}
     </text>
   </svg>
   {#if label}

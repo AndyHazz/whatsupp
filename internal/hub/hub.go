@@ -35,7 +35,8 @@ type Hub struct {
 	incidentManager *IncidentManager
 	monitorStates   map[string]*MonitorState
 	monitorTypes    map[string]string // monitor name -> type (http, ping, port)
-	monitorURLs     map[string]string // monitor name -> service URL (for linking)
+	monitorURLs      map[string]string // monitor name -> service URL (for linking)
+	monitorHosts     map[string]string // monitor name -> host (for grouping)
 	monitorIntervals map[string]int   // monitor name -> check interval in seconds
 	lastResults     map[string]checks.Result
 	lastCheckAt     map[string]int64 // monitor name -> unix timestamp of last check
@@ -69,6 +70,7 @@ func New(cfg *config.Config, configPath string) (*Hub, error) {
 	states := make(map[string]*MonitorState)
 	monTypes := make(map[string]string)
 	monURLs := make(map[string]string)
+	monHosts := make(map[string]string)
 	monIntervals := make(map[string]int)
 	for _, m := range cfg.Monitors {
 		threshold := m.FailureThreshold
@@ -79,6 +81,9 @@ func New(cfg *config.Config, configPath string) (*Hub, error) {
 		monTypes[m.Name] = m.Type
 		if m.URL != "" {
 			monURLs[m.Name] = m.URL
+		}
+		if m.Host != "" {
+			monHosts[m.Name] = m.Host
 		}
 		monIntervals[m.Name] = int(m.Interval.Seconds())
 	}
@@ -109,8 +114,9 @@ func New(cfg *config.Config, configPath string) (*Hub, error) {
 		downsampler:     NewDownsampler(s),
 		incidentManager: NewIncidentManager(s),
 		monitorStates:   states,
-		monitorTypes:    monTypes,
-		monitorURLs:     monURLs,
+		monitorTypes:     monTypes,
+		monitorURLs:      monURLs,
+		monitorHosts:     monHosts,
 		monitorIntervals: monIntervals,
 		lastResults:     make(map[string]checks.Result),
 		lastCheckAt:     make(map[string]int64),
@@ -316,6 +322,7 @@ func (h *Hub) MonitorStatuses() map[string]api.MonitorStatus {
 			LastCheck:    lastCheck,
 			UptimePct:    uptimePct,
 			URL:          h.monitorURLs[name],
+			Host:         h.monitorHosts[name],
 			Interval:     h.monitorIntervals[name],
 			CertDaysLeft: certDays,
 		}
@@ -368,6 +375,7 @@ func (h *Hub) MonitorStatus(name string) (api.MonitorStatus, bool) {
 		LastCheck:    lastCheck,
 		UptimePct:    uptimePct,
 		URL:          h.monitorURLs[name],
+		Host:         h.monitorHosts[name],
 		Interval:     h.monitorIntervals[name],
 		CertDaysLeft: certDays,
 	}, true
@@ -406,6 +414,7 @@ func (h *Hub) ReloadConfig() error {
 	newStates := make(map[string]*MonitorState)
 	newTypes := make(map[string]string)
 	newURLs := make(map[string]string)
+	newHosts := make(map[string]string)
 	newIntervals := make(map[string]int)
 	for _, m := range cfg.Monitors {
 		threshold := m.FailureThreshold
@@ -423,11 +432,15 @@ func (h *Hub) ReloadConfig() error {
 		if m.URL != "" {
 			newURLs[m.Name] = m.URL
 		}
+		if m.Host != "" {
+			newHosts[m.Name] = m.Host
+		}
 		newIntervals[m.Name] = int(m.Interval.Seconds())
 	}
 	h.monitorStates = newStates
 	h.monitorTypes = newTypes
 	h.monitorURLs = newURLs
+	h.monitorHosts = newHosts
 	h.monitorIntervals = newIntervals
 
 	// Clean up lastResults and lastCheckAt for removed monitors

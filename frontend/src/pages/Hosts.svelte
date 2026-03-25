@@ -87,7 +87,7 @@
 
   {#if loading}
   <div class="grid">
-    <Skeleton variant="card" count={4} />
+    <Skeleton variant="host" count={4} />
   </div>
   {:else if error}
     <p class="error">{error}</p>
@@ -115,14 +115,22 @@
               <span class="last-seen">{formatLastSeen(h.last_seen_at)}</span>
             </div>
           </div>
-          <div class="gauges">
-            {#if getMetric(h.host, 'cpu.usage_pct') != null}
-              <Gauge value={getMetric(h.host, 'cpu.usage_pct')} label="CPU" />
-            {/if}
-            {#if getMetric(h.host, 'mem.usage_pct') != null}
-              <Gauge value={getMetric(h.host, 'mem.usage_pct')} label="RAM" />
-            {/if}
-          </div>
+          {#if getMetric(h.host, 'cpu.usage_pct') != null || getMetric(h.host, 'mem.usage_pct') != null}
+            <div class="gauges">
+              {#if getMetric(h.host, 'cpu.usage_pct') != null}
+                <Gauge value={getMetric(h.host, 'cpu.usage_pct')} label="CPU" />
+              {/if}
+              {#if getMetric(h.host, 'mem.usage_pct') != null}
+                <Gauge value={getMetric(h.host, 'mem.usage_pct')} label="RAM" />
+              {/if}
+            </div>
+          {:else}
+            <div class="gauges gauges-offline">
+              <Gauge value={0} label="CPU" disabled />
+              <Gauge value={0} label="RAM" disabled />
+            </div>
+            <div class="offline-label">Offline</div>
+          {/if}
           {#if getMetric(h.host, 'temp.cpu') != null || getMetric(h.host, 'temp.cpu_thermal') != null}
             <div class="temp">
               CPU Temp: <span class="temp-value">{Math.round(getMetric(h.host, 'temp.cpu') ?? getMetric(h.host, 'temp.cpu_thermal') ?? 0)}&deg;C</span>
@@ -220,6 +228,18 @@
   .battery-warn .battery-value { color: var(--orange); }
   .battery-low .battery-value { color: var(--red); }
   .battery-icon { margin-right: 2px; }
+
+  .gauges-offline {
+    opacity: 0.4;
+  }
+
+  .offline-label {
+    font-size: 0.8rem;
+    text-align: center;
+    color: var(--fg-muted);
+    opacity: 0.6;
+    margin-bottom: 4px;
+  }
 
   .agent-version {
     font-size: 0.75rem;

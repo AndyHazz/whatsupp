@@ -16,6 +16,7 @@
   let rangeSeconds = 86400; // 24h default
   let avgLatency = null;
   let windowUptime = null;
+  let checkRows = [];
 
   async function loadData() {
     loading = true;
@@ -38,6 +39,8 @@
       const timestamps = rows.map(r => r.timestamp);
       const latencies  = rows.map(r => r.latency_ms);
       chartData = [timestamps, latencies];
+      checkRows = rows;
+      checkBands = buildCheckBands(rows);
 
       // Compute avg latency (exclude zeros/nulls for down results)
       const validLatencies = rows.filter(r => r.status === 'up' && r.latency_ms > 0).map(r => r.latency_ms);
@@ -78,16 +81,49 @@
         [...chartData[0], data.timestamp],
         [...chartData[1], data.latency_ms],
       ];
+      checkRows = [...checkRows, { timestamp: data.timestamp, status: data.status, latency_ms: data.latency_ms }];
+      checkBands = buildCheckBands(checkRows);
     }
   });
 
   onDestroy(unsub);
 
-  // Convert incidents to chart bands
-  $: chartBands = incidents.map(inc => ({
-    from: inc.started_at,
-    to: inc.resolved_at || Math.floor(Date.now() / 1000),
-  }));
+  // Build chart bands from per-check down statuses so the detail view
+  // matches the sparkline (which also uses individual check statuses).
+  // This catches intermittent failures that don't meet the consecutive
+  // failure threshold required to create a formal incident.
+  let checkBands = [];
+  function buildCheckBands(rows) {
+    const bands = [];
+    if (!rows || rows.length < 2) return bands;
+    let start = null;
+    for (let i = 0; i < rows.length; i++) {
+      // For raw results, check status; for aggregated tiers, check fail_count
+      const isDown = rows[i].status === 'down' || (rows[i].fail_count > 0 && !rows[i].status);
+      if (isDown) {
+        if (start === null) start = i;
+      } else if (start !== null) {
+        // Extend band edges by half the gap to neighbours so single-point
+        // failures are visible rather than zero-width
+        const fromTs = start > 0
+          ? rows[start].timestamp - (rows[start].timestamp - rows[start - 1].timestamp) / 2
+          : rows[start].timestamp;
+        const toTs = rows[i - 1].timestamp + (rows[i].timestamp - rows[i - 1].timestamp) / 2;
+        bands.push({ from: fromTs, to: toTs });
+        start = null;
+      }
+    }
+    if (start !== null) {
+      const fromTs = start > 0
+        ? rows[start].timestamp - (rows[start].timestamp - rows[start - 1].timestamp) / 2
+        : rows[start].timestamp;
+      const toTs = rows[rows.length - 1].timestamp;
+      bands.push({ from: fromTs, to: toTs });
+    }
+    return bands;
+  }
+
+  $: chartBands = checkBands;
 
   function formatDuration(seconds) {
     if (!seconds || seconds < 0) return '-';
