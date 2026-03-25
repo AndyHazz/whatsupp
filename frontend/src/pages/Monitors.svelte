@@ -21,23 +21,22 @@
   let sparklineStatuses = {};
   let viewMode = 'cards'; // 'cards' | 'list'
 
-  // Group monitors by host
-  $: hostGroups = (() => {
+  // Group monitors by group (agent hostname)
+  $: monitorGroups = (() => {
     const groups = {};
     for (const m of monitors) {
-      const key = m.host || '';
+      const key = m.group || '';
       if (!groups[key]) groups[key] = [];
       groups[key].push(m);
     }
-    // Sort group keys: named hosts alphabetically, empty string last
     const keys = Object.keys(groups).sort((a, b) => {
       if (!a) return 1;
       if (!b) return -1;
       return a.localeCompare(b);
     });
-    return keys.map(k => ({ host: k, monitors: groups[k] }));
+    return keys.map(k => ({ group: k, monitors: groups[k] }));
   })();
-  $: hasMultipleHosts = hostGroups.length > 1 || (hostGroups.length === 1 && hostGroups[0].host !== '');
+  $: hasGroups = monitorGroups.length > 1 || (monitorGroups.length === 1 && monitorGroups[0].group !== '');
 
   async function toggleMute(name) {
     try {
@@ -134,9 +133,9 @@
     <p class="muted">No monitors configured. Add monitors in Settings.</p>
   {:else}
     {#if viewMode === 'cards'}
-      {#each hasMultipleHosts ? hostGroups : [{ host: '', monitors }] as group}
-        {#if hasMultipleHosts}
-          <h2 class="host-group-label">{group.host || 'Other'}</h2>
+      {#each hasGroups ? monitorGroups : [{ group: '', monitors }] as group}
+        {#if hasGroups}
+          <h2 class="host-group-label">{group.group || 'Other'}</h2>
         {/if}
         <div class="grid">
           {#each group.monitors as m}
@@ -191,9 +190,9 @@
         </div>
       {/each}
     {:else}
-      {#each hasMultipleHosts ? hostGroups : [{ host: '', monitors }] as group}
-        {#if hasMultipleHosts}
-          <h2 class="host-group-label">{group.host || 'Other'}</h2>
+      {#each hasGroups ? monitorGroups : [{ group: '', monitors }] as group}
+        {#if hasGroups}
+          <h2 class="host-group-label">{group.group || 'Other'}</h2>
         {/if}
         <div class="list">
           {#each group.monitors as m}

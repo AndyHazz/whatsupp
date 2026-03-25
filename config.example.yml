@@ -10,20 +10,20 @@ monitors:
   - name: "Plex"
     type: http
     url: "https://plex.intadnet.duckdns.org"
-    host: "plexypi"      # groups this monitor under the plexypi host
+    group: "plexypi"      # groups this monitor under the plexypi host
     interval: 60s
     failure_threshold: 3
 
   - name: "N8N"
     type: http
     url: "https://n8n8n8n.duckdns.org"
-    host: "plexypi"
+    group: "plexypi"
     interval: 60s
 
   - name: "AdGuard Home"
     type: http
     url: "http://192.168.50.50:8083"
-    host: "dietpi"
+    group: "dietpi"
     interval: 60s
 
   - name: "Gateway"

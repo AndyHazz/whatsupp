@@ -34,6 +34,7 @@ type Monitor struct {
     URL                string        `yaml:"url,omitempty"`
     Host               string        `yaml:"host,omitempty"`
     Port               int           `yaml:"port,omitempty"`
+    Group              string        `yaml:"group,omitempty"` // agent hostname to group this monitor under
     Interval           time.Duration `yaml:"interval"`
     FailureThreshold   int           `yaml:"failure_threshold,omitempty"`
     InsecureSkipVerify bool          `yaml:"insecure_skip_verify,omitempty"`

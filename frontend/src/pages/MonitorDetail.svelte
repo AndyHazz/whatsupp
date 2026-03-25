@@ -154,7 +154,7 @@
     <div class="header">
       <div>
         <h1>{monitor.name}</h1>
-        <span class="meta">{monitor.type} &middot; {monitor.url || monitor.host || ''}</span>
+        <span class="meta">{monitor.type}{monitor.url ? ` \u00B7 ${monitor.url}` : ''}{monitor.group ? ` \u00B7 ${monitor.group}` : ''}</span>
       </div>
       <StatusBadge status={monitor.status} />
     </div>

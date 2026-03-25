@@ -155,7 +155,7 @@ type MonitorStatus struct {
 	LastCheck    int64   `json:"last_check"`
 	UptimePct    float64 `json:"uptime_pct"` // 24h uptime
 	URL          string  `json:"url,omitempty"`
-	Host         string  `json:"host,omitempty"`
+	Group        string  `json:"group,omitempty"`
 	Interval     int     `json:"interval"` // check interval in seconds
 	CertDaysLeft *int    `json:"cert_days_left,omitempty"`
 }
