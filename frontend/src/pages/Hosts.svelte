@@ -9,7 +9,7 @@
   import Skeleton from '../components/Skeleton.svelte';
 
   let hosts = [];
-  let hostMetrics = {}; // host -> { metricName: value }
+  let hostMetrics = {};
   let monitors = [];
   let sparklines = {};
   let sparklineStatuses = {};
@@ -48,7 +48,6 @@
       });
       mutedNames = new Set(mutes || []);
 
-      // Fetch host metrics (last 2 minutes)
       const now = Math.floor(Date.now() / 1000);
       const from = now - 120;
       await Promise.all(hosts.map(async (h) => {
@@ -65,7 +64,6 @@
       }));
       hostMetrics = hostMetrics;
 
-      // Fetch monitor sparklines (last 1h)
       const oneHourAgo = now - 3600;
       await Promise.all(monitors.map(async (m) => {
         try {
@@ -84,7 +82,6 @@
     }
   });
 
-  // Live metric updates
   const unsubMetric = onMessage('agent_metric', (data) => {
     if (!data.host) return;
     if (!hostMetrics[data.host]) hostMetrics[data.host] = {};
@@ -94,7 +91,6 @@
     hostMetrics = hostMetrics;
   });
 
-  // Live monitor updates
   const unsubCheck = onMessage('check_result', (data) => {
     monitors = monitors.map(m => {
       if (m.name === data.monitor) {
@@ -124,7 +120,6 @@
     return `${Math.floor(diff / 3600)}h ago`;
   }
 
-  // Build rows: each host + its grouped monitors
   $: monitorsByGroup = (() => {
     const map = {};
     for (const m of monitors) {
@@ -138,7 +133,6 @@
 
   $: ungroupedMonitors = monitors.filter(m => !m.group);
 
-  // Hosts sorted: those with monitors first, then alphabetical
   $: sortedHosts = [...hosts].sort((a, b) => {
     const aHas = monitorsByGroup[a.host] ? 1 : 0;
     const bHas = monitorsByGroup[b.host] ? 1 : 0;
@@ -151,81 +145,142 @@
   <h1>Hosts</h1>
 
   {#if loading}
-    <div class="host-row">
-      <div class="row-grid">
-        <Skeleton variant="host" count={1} />
-        <Skeleton variant="monitor" count={3} />
+    {#each [1, 2] as _}
+      <div class="host-group">
+        <div class="host-banner skel-banner">
+          <div class="skel skel-text" style="width:100px; height:16px;"></div>
+          <div class="skel skel-circle-sm"></div>
+          <div class="skel skel-circle-sm"></div>
+          <div class="skel skel-text" style="width:80px; height:12px; margin-left:auto;"></div>
+        </div>
+        <div class="monitor-grid">
+          <Skeleton variant="monitor" count={3} />
+        </div>
       </div>
-    </div>
-    <div class="host-row">
-      <div class="row-grid">
-        <Skeleton variant="host" count={1} />
-        <Skeleton variant="monitor" count={2} />
-      </div>
-    </div>
+    {/each}
   {:else if error}
     <p class="error">{error}</p>
   {:else}
     {#each sortedHosts as h}
       {@const grouped = monitorsByGroup[h.host] || []}
-      <div class="host-row">
-        <div class="row-grid">
-          <!-- Host card -->
-          <a href="/hosts/{encodeURIComponent(h.host)}" use:link class="card host-card">
-            <div class="card-header">
-              <span class="host-name">{h.host}</span>
-              <div class="header-right">
-                <button
-                  class="mute-btn"
-                  class:is-muted={mutedNames.has('agent:' + h.host)}
-                  title={mutedNames.has('agent:' + h.host) ? 'Unmute notifications' : 'Mute notifications'}
-                  on:click|preventDefault|stopPropagation={() => toggleMute('agent:' + h.host)}
-                >
-                  {#if mutedNames.has('agent:' + h.host)}
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                  {:else}
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-                  {/if}
-                </button>
-                <span class="last-seen">{formatLastSeen(h.last_seen_at)}</span>
-              </div>
-            </div>
-            {#if getMetric(h.host, 'cpu.usage_pct') != null || getMetric(h.host, 'mem.usage_pct') != null}
-              <div class="gauges">
-                {#if getMetric(h.host, 'cpu.usage_pct') != null}
-                  <Gauge value={getMetric(h.host, 'cpu.usage_pct')} label="CPU" />
-                {/if}
-                {#if getMetric(h.host, 'mem.usage_pct') != null}
-                  <Gauge value={getMetric(h.host, 'mem.usage_pct')} label="RAM" />
-                {/if}
-              </div>
+      {@const hasMetrics = getMetric(h.host, 'cpu.usage_pct') != null || getMetric(h.host, 'mem.usage_pct') != null}
+      <div class="host-group">
+        <!-- Host banner -->
+        <a href="/hosts/{encodeURIComponent(h.host)}" use:link class="host-banner" class:offline={!hasMetrics}>
+          <span class="host-name">{h.host}</span>
+
+          <div class="banner-gauges">
+            {#if hasMetrics}
+              {#if getMetric(h.host, 'cpu.usage_pct') != null}
+                <Gauge value={getMetric(h.host, 'cpu.usage_pct')} label="CPU" size={52} />
+              {/if}
+              {#if getMetric(h.host, 'mem.usage_pct') != null}
+                <Gauge value={getMetric(h.host, 'mem.usage_pct')} label="RAM" size={52} />
+              {/if}
             {:else}
-              <div class="gauges gauges-offline">
-                <Gauge value={0} label="CPU" disabled />
-                <Gauge value={0} label="RAM" disabled />
-              </div>
-              <div class="offline-label">Offline</div>
+              <Gauge value={0} label="CPU" size={52} disabled />
+              <Gauge value={0} label="RAM" size={52} disabled />
             {/if}
+          </div>
+
+          <div class="banner-details">
             {#if getMetric(h.host, 'temp.cpu') != null || getMetric(h.host, 'temp.cpu_thermal') != null}
-              <div class="temp">
-                CPU Temp: <span class="temp-value">{Math.round(getMetric(h.host, 'temp.cpu') ?? getMetric(h.host, 'temp.cpu_thermal') ?? 0)}&deg;C</span>
-              </div>
+              <span class="temp">{Math.round(getMetric(h.host, 'temp.cpu') ?? getMetric(h.host, 'temp.cpu_thermal') ?? 0)}&deg;C</span>
             {/if}
             {#if getMetric(h.host, 'battery.charge_pct') != null}
               {@const chargePct = getMetric(h.host, 'battery.charge_pct')}
               {@const isCharging = getMetric(h.host, 'battery.charging') === 1}
-              <div class="battery" class:battery-low={chargePct < 10} class:battery-warn={chargePct >= 10 && chargePct < 20}>
-                <span class="battery-icon">{isCharging ? '\u26A1' : '\u{1F50B}'}</span>
-                <span class="battery-value">{Math.round(chargePct)}%</span>
-              </div>
+              <span class="battery" class:battery-low={chargePct < 10} class:battery-warn={chargePct >= 10 && chargePct < 20}>
+                {isCharging ? '\u26A1' : '\u{1F50B}'} {Math.round(chargePct)}%
+              </span>
             {/if}
-            {#if h.version}
-              <div class="agent-version muted">{h.version}</div>
+            {#if !hasMetrics}
+              <span class="offline-label">Offline</span>
             {/if}
-          </a>
+          </div>
 
-          <!-- Grouped monitor cards -->
-          {#each grouped as m}
+          <div class="banner-right">
+            <button
+              class="mute-btn"
+              class:is-muted={mutedNames.has('agent:' + h.host)}
+              title={mutedNames.has('agent:' + h.host) ? 'Unmute notifications' : 'Mute notifications'}
+              on:click|preventDefault|stopPropagation={() => toggleMute('agent:' + h.host)}
+            >
+              {#if mutedNames.has('agent:' + h.host)}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              {:else}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              {/if}
+            </button>
+            <span class="last-seen">{formatLastSeen(h.last_seen_at)}</span>
+            {#if h.version}
+              <span class="agent-version">{h.version}</span>
+            {/if}
+          </div>
+        </a>
+
+        <!-- Grouped monitors -->
+        {#if grouped.length > 0}
+          <div class="monitor-grid">
+            {#each grouped as m}
+              <div class="card monitor-card" class:down={m.status === 'down'} on:click={() => goToMonitor(m.name)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && goToMonitor(m.name)}>
+                <div class="card-top">
+                  <div class="card-title">
+                    {#if m.url}
+                      <a href={m.url} target="_blank" rel="noopener noreferrer" class="monitor-name service-link" on:click|stopPropagation>{m.name}</a>
+                    {:else}
+                      <span class="monitor-name">{m.name}</span>
+                    {/if}
+                  </div>
+                  <div class="card-stats">
+                    {#if m.latency_ms != null}
+                      <span class="latency">{Math.round(m.latency_ms)}<span class="unit">ms</span></span>
+                    {/if}
+                    <StatusBadge status={m.status} />
+                  </div>
+                </div>
+                <div class="card-meta">
+                  <div class="card-meta-left">
+                    {#if m.uptime_pct != null}
+                      <span class="uptime" class:good={m.uptime_pct >= 99} class:warn={m.uptime_pct < 99 && m.uptime_pct >= 95} class:bad={m.uptime_pct < 95}>
+                        {m.uptime_pct.toFixed(1)}%
+                      </span>
+                    {/if}
+                    {#if m.cert_days_left != null}
+                      <span class="cert-badge" class:cert-warn={m.cert_days_left <= 14} class:cert-danger={m.cert_days_left <= 3}>
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        {m.cert_days_left}d
+                      </span>
+                    {/if}
+                  </div>
+                  <button
+                    class="mute-btn"
+                    class:is-muted={mutedNames.has(m.name)}
+                    title={mutedNames.has(m.name) ? 'Unmute notifications' : 'Mute notifications'}
+                    on:click|stopPropagation={() => toggleMute(m.name)}
+                  >
+                    {#if mutedNames.has(m.name)}
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    {:else}
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                    {/if}
+                  </button>
+                </div>
+                <div class="card-sparkline">
+                  <Sparkline data={sparklines[m.name] || []} statuses={sparklineStatuses[m.name] || []} width={260} height={36} />
+                </div>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    {/each}
+
+    {#if ungroupedMonitors.length > 0}
+      <div class="host-group">
+        <div class="section-banner">Ungrouped Monitors</div>
+        <div class="monitor-grid">
+          {#each ungroupedMonitors as m}
             <div class="card monitor-card" class:down={m.status === 'down'} on:click={() => goToMonitor(m.name)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && goToMonitor(m.name)}>
               <div class="card-top">
                 <div class="card-title">
@@ -249,12 +304,6 @@
                       {m.uptime_pct.toFixed(1)}%
                     </span>
                   {/if}
-                  {#if m.cert_days_left != null}
-                    <span class="cert-badge" class:cert-warn={m.cert_days_left <= 14} class:cert-danger={m.cert_days_left <= 3}>
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                      {m.cert_days_left}d
-                    </span>
-                  {/if}
                 </div>
                 <button
                   class="mute-btn"
@@ -276,55 +325,6 @@
           {/each}
         </div>
       </div>
-    {/each}
-
-    {#if ungroupedMonitors.length > 0}
-      <h2 class="section-label">Ungrouped Monitors</h2>
-      <div class="row-grid">
-        {#each ungroupedMonitors as m}
-          <div class="card monitor-card" class:down={m.status === 'down'} on:click={() => goToMonitor(m.name)} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && goToMonitor(m.name)}>
-            <div class="card-top">
-              <div class="card-title">
-                {#if m.url}
-                  <a href={m.url} target="_blank" rel="noopener noreferrer" class="monitor-name service-link" on:click|stopPropagation>{m.name}</a>
-                {:else}
-                  <span class="monitor-name">{m.name}</span>
-                {/if}
-              </div>
-              <div class="card-stats">
-                {#if m.latency_ms != null}
-                  <span class="latency">{Math.round(m.latency_ms)}<span class="unit">ms</span></span>
-                {/if}
-                <StatusBadge status={m.status} />
-              </div>
-            </div>
-            <div class="card-meta">
-              <div class="card-meta-left">
-                {#if m.uptime_pct != null}
-                  <span class="uptime" class:good={m.uptime_pct >= 99} class:warn={m.uptime_pct < 99 && m.uptime_pct >= 95} class:bad={m.uptime_pct < 95}>
-                    {m.uptime_pct.toFixed(1)}%
-                  </span>
-                {/if}
-              </div>
-              <button
-                class="mute-btn"
-                class:is-muted={mutedNames.has(m.name)}
-                title={mutedNames.has(m.name) ? 'Unmute notifications' : 'Mute notifications'}
-                on:click|stopPropagation={() => toggleMute(m.name)}
-              >
-                {#if mutedNames.has(m.name)}
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                {:else}
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-                {/if}
-              </button>
-            </div>
-            <div class="card-sparkline">
-              <Sparkline data={sparklines[m.name] || []} statuses={sparklineStatuses[m.name] || []} width={260} height={36} />
-            </div>
-          </div>
-        {/each}
-      </div>
     {/if}
 
     {#if hosts.length === 0 && monitors.length === 0}
@@ -336,101 +336,128 @@
 <style>
   .hosts-page h1 { margin-bottom: var(--gap); }
 
-  .host-row {
-    margin-bottom: var(--gap);
+  /* ── Host group: banner + monitors ───── */
+  .host-group {
+    margin-bottom: 24px;
   }
 
-  .row-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: var(--gap);
+  .host-banner {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-left: 3px solid var(--purple);
+    border-radius: var(--radius) var(--radius) 0 0;
+    text-decoration: none;
+    color: var(--fg);
+    transition: background 0.15s ease;
+  }
+  .host-banner:hover {
+    background: var(--bg-card-hover);
+    text-decoration: none;
+  }
+  .host-banner.offline {
+    border-left-color: var(--fg-muted);
   }
 
-  .section-label {
+  .host-name {
+    font-weight: 700;
+    font-size: 1.1rem;
+    min-width: 100px;
+  }
+
+  .banner-gauges {
+    display: flex;
+    gap: 12px;
+  }
+  .host-banner.offline .banner-gauges {
+    opacity: 0.35;
+  }
+
+  .banner-details {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .temp {
+    font-size: 0.85rem;
+    color: var(--orange);
+    font-weight: 600;
+  }
+  .battery {
+    font-size: 0.85rem;
+    color: var(--green);
+    font-weight: 600;
+  }
+  .battery-warn { color: var(--orange); }
+  .battery-low { color: var(--red); }
+  .offline-label {
+    font-size: 0.8rem;
+    color: var(--fg-muted);
+    opacity: 0.6;
+  }
+
+  .banner-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .last-seen {
+    font-size: 0.8rem;
+    color: var(--fg-muted);
+  }
+  .agent-version {
+    font-size: 0.7rem;
+    color: var(--fg-muted);
+    opacity: 0.6;
+  }
+
+  .section-banner {
+    padding: 10px 20px;
     font-size: 0.85rem;
     font-weight: 600;
     color: var(--fg-muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    margin: 24px 0 12px;
-  }
-
-  /* ── Shared card base ──────────────────── */
-  .card {
     background: var(--bg-card);
-    border-radius: var(--radius);
-    padding: 16px;
-    color: var(--fg);
     border: 1px solid var(--border-subtle);
-    box-shadow: var(--shadow-card);
-    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
-  }
-  .card:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(189, 147, 249, 0.1);
-    border-color: rgba(189, 147, 249, 0.3);
-    background: var(--bg-card-hover);
-    text-decoration: none;
+    border-radius: var(--radius) var(--radius) 0 0;
   }
 
-  /* ── Host card ─────────────────────────── */
-  .host-card {
-    text-decoration: none;
-    border-left: 3px solid var(--purple);
-  }
-  .card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-  }
-  .host-name { font-weight: 600; font-size: 1.05rem; }
-  .header-right { display: flex; align-items: center; gap: 8px; }
-  .last-seen { font-size: 0.8rem; color: var(--fg-muted); }
-
-  .gauges {
-    display: flex;
-    justify-content: space-around;
-    margin-bottom: 8px;
-  }
-  .gauges-offline { opacity: 0.4; }
-  .offline-label {
-    font-size: 0.8rem;
-    text-align: center;
-    color: var(--fg-muted);
-    opacity: 0.6;
-    margin-bottom: 4px;
-  }
-
-  .temp {
-    font-size: 0.85rem;
-    color: var(--fg-muted);
-    text-align: center;
-  }
-  .temp-value { color: var(--orange); font-weight: 600; }
-
-  .battery {
-    font-size: 0.85rem;
-    color: var(--fg-muted);
-    text-align: center;
-  }
-  .battery-value { font-weight: 600; color: var(--green); }
-  .battery-warn .battery-value { color: var(--orange); }
-  .battery-low .battery-value { color: var(--red); }
-  .battery-icon { margin-right: 2px; }
-
-  .agent-version {
-    font-size: 0.75rem;
-    text-align: center;
-    margin-top: 4px;
+  /* ── Monitor grid below banner ───────── */
+  .monitor-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1px;
+    background: var(--border-subtle);
+    border: 1px solid var(--border-subtle);
+    border-top: none;
+    border-radius: 0 0 var(--radius) var(--radius);
+    overflow: hidden;
   }
 
   /* ── Monitor card ──────────────────────── */
-  .monitor-card {
+  .card {
+    background: var(--bg-card);
+    padding: 14px 16px;
+    color: var(--fg);
     cursor: pointer;
+    transition: background 0.15s ease;
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
   }
-  .monitor-card.down {
-    border-left: 3px solid var(--red);
+  .card:hover {
+    background: var(--bg-card-hover);
+    text-decoration: none;
+  }
+  .card.down {
+    box-shadow: inset 3px 0 0 var(--red);
   }
 
   .card-top {
@@ -445,7 +472,7 @@
   }
   .monitor-name {
     font-weight: 600;
-    font-size: 1rem;
+    font-size: 0.95rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -469,11 +496,11 @@
   .latency {
     color: var(--cyan);
     font-weight: 700;
-    font-size: 1.1rem;
+    font-size: 1.05rem;
     letter-spacing: -0.5px;
   }
   .unit {
-    font-size: 0.65rem;
+    font-size: 0.6rem;
     font-weight: 400;
     opacity: 0.7;
     margin-left: 1px;
@@ -483,7 +510,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
   .card-meta-left {
     display: flex;
@@ -515,7 +542,7 @@
   }
   .card-sparkline :global(.sparkline) {
     width: 100%;
-    height: 36px;
+    height: 32px;
   }
 
   /* ── Mute button ───────────────────────── */
@@ -537,4 +564,30 @@
 
   .muted { color: var(--fg-muted); }
   .error { color: var(--red); }
+
+  /* ── Skeleton shimmer for banner ──────── */
+  .skel-banner {
+    pointer-events: none;
+  }
+  .skel-circle-sm {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+  }
+
+  /* ── Mobile ────────────────────────────── */
+  @media (max-width: 768px) {
+    .host-banner {
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 12px 14px;
+    }
+    .host-name {
+      min-width: auto;
+    }
+    .banner-right {
+      width: 100%;
+      justify-content: flex-end;
+    }
+  }
 </style>
