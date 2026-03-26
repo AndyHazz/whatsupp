@@ -166,13 +166,54 @@
     padding: 10px 12px;
     border-bottom: 1px solid var(--border-subtle);
   }
-  .cause { color: var(--red); max-width: 300px; }
+  .cause {
+    color: var(--red);
+    max-width: 300px;
+    word-break: break-word;
+  }
 
   tbody tr {
     transition: background-color 0.15s ease;
   }
   tbody tr:hover {
     background-color: rgba(248, 248, 242, 0.04);
+  }
+
+  /* ── Mobile: stack as cards ──────────── */
+  @media (max-width: 768px) {
+    table, thead, tbody, tr, th, td {
+      display: block;
+    }
+    thead { display: none; }
+    tr {
+      padding: 12px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    td {
+      padding: 2px 0;
+      border-bottom: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+    }
+    td::before {
+      font-weight: 600;
+      color: var(--fg-muted);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      margin-right: 12px;
+      flex-shrink: 0;
+    }
+    td:nth-child(1)::before { content: "Started"; }
+    td:nth-child(2)::before { content: "Monitor"; }
+    td:nth-child(3)::before { content: "Status"; }
+    td:nth-child(4)::before { content: "Duration"; }
+    td:nth-child(5)::before { content: "Cause"; }
+    .cause {
+      max-width: none;
+      text-align: right;
+    }
   }
 
   .muted { color: var(--fg-muted); }
