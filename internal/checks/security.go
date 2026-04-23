@@ -37,7 +37,7 @@ func (s *SecurityScanner) Scan() ([]int, error) {
 	}
 
 	var mu sync.Mutex
-	var openPorts []int
+	openPorts := make([]int, 0)
 
 	sem := make(chan struct{}, concurrency)
 	var wg sync.WaitGroup

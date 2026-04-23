@@ -49,9 +49,10 @@
       }
       let portCount = 0;
       for (const [target, scan] of Object.entries(latestScans)) {
-        const openPorts = typeof scan.open_ports_json === 'string'
+        const parsed = typeof scan.open_ports_json === 'string'
           ? JSON.parse(scan.open_ports_json || '[]')
-          : (scan.open_ports_json || []);
+          : scan.open_ports_json;
+        const openPorts = Array.isArray(parsed) ? parsed : [];
         const expected = baselineMap[target] || new Set();
         portCount += openPorts.filter(p => !expected.has(p)).length;
       }
