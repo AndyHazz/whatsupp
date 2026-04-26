@@ -55,6 +55,11 @@ type SecurityTarget struct {
     Schedule        string        `yaml:"schedule"`
     ScanConcurrency int           `yaml:"scan_concurrency"`
     Timeout         time.Duration `yaml:"timeout"`
+    // AlertHysteresis is the number of consecutive scans (including the current
+    // one) in which a port must be absent (or present) before a "gone" (or
+    // "new") alert is emitted. Suppresses single-scan false negatives caused
+    // by transient SYN-ACK drops. Default 2.
+    AlertHysteresis int `yaml:"alert_hysteresis"`
 }
 
 type AlertingConfig struct {
@@ -140,6 +145,9 @@ func applyDefaults(cfg *Config) {
         }
         if cfg.Security.Targets[i].Timeout == 0 {
             cfg.Security.Targets[i].Timeout = 2 * time.Second
+        }
+        if cfg.Security.Targets[i].AlertHysteresis == 0 {
+            cfg.Security.Targets[i].AlertHysteresis = 2
         }
     }
 

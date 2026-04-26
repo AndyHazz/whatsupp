@@ -697,6 +697,7 @@ func (h *Hub) executeSecurityScan(target config.SecurityTarget) {
 	}
 
 	var newPorts, gonePorts []int
+	var alertedNew, alertedGone []int
 	if baseline == nil {
 		if err := h.store.UpsertSecurityBaseline(target.Host, string(portsJSON), now); err != nil {
 			log.Printf("hub: set initial baseline error: %v", err)
@@ -706,12 +707,39 @@ func (h *Hub) executeSecurityScan(target config.SecurityTarget) {
 		var baselinePorts []int
 		json.Unmarshal([]byte(baseline.ExpectedPortsJSON), &baselinePorts)
 		newPorts, gonePorts = checks.CompareBaseline(baselinePorts, openPorts)
-		for _, p := range newPorts {
+
+		hysteresis := target.AlertHysteresis
+		if hysteresis < 1 {
+			hysteresis = 1
+		}
+		alertedNew, alertedGone = newPorts, gonePorts
+		if hysteresis > 1 && (len(newPorts) > 0 || len(gonePorts) > 0) {
+			recent, err := h.store.GetRecentSecurityScans(target.Host, hysteresis)
+			if err != nil {
+				log.Printf("hub: get recent scans for hysteresis: %v", err)
+			} else {
+				window := make([][]int, 0, len(recent))
+				for _, sc := range recent {
+					var ports []int
+					_ = json.Unmarshal([]byte(sc.OpenPortsJSON), &ports)
+					window = append(window, ports)
+				}
+				alertedNew, alertedGone = checks.FilterByHysteresis(newPorts, gonePorts, window, hysteresis)
+				suppressedNew := len(newPorts) - len(alertedNew)
+				suppressedGone := len(gonePorts) - len(alertedGone)
+				if suppressedNew > 0 || suppressedGone > 0 {
+					log.Printf("hub: hysteresis suppressed alerts for %s: %d new, %d gone (need %d consecutive scans)",
+						target.Host, suppressedNew, suppressedGone, hysteresis)
+				}
+			}
+		}
+
+		for _, p := range alertedNew {
 			if err := h.alerter.SendNewPort(target.Host, p); err != nil {
 				log.Printf("hub: alert new port error: %v", err)
 			}
 		}
-		for _, p := range gonePorts {
+		for _, p := range alertedGone {
 			if err := h.alerter.SendPortGone(target.Host, p); err != nil {
 				log.Printf("hub: alert port gone error: %v", err)
 			}
@@ -732,8 +760,8 @@ func (h *Hub) executeSecurityScan(target config.SecurityTarget) {
 		})
 	}
 
-	log.Printf("hub: security scan of %s complete: %d open ports, %d new, %d gone",
-		target.Host, len(openPorts), len(newPorts), len(gonePorts))
+	log.Printf("hub: security scan of %s complete: %d open ports, %d new (%d alerted), %d gone (%d alerted)",
+		target.Host, len(openPorts), len(newPorts), len(alertedNew), len(gonePorts), len(alertedGone))
 }
 
 // ScanSchedules returns the next run time and progress for all security targets.

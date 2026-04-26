@@ -119,6 +119,30 @@ func (s *Store) GetAllSecurityScans() ([]SecurityScan, error) {
 	return scans, rows.Err()
 }
 
+// GetRecentSecurityScans returns the most recent `limit` scans for `target`,
+// newest first. Used for hysteresis-based alert filtering.
+func (s *Store) GetRecentSecurityScans(target string, limit int) ([]SecurityScan, error) {
+	rows, err := s.db.Query(
+		`SELECT id, target, timestamp, open_ports_json FROM security_scans
+		 WHERE target = ? ORDER BY timestamp DESC LIMIT ?`,
+		target, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var scans []SecurityScan
+	for rows.Next() {
+		var sc SecurityScan
+		if err := rows.Scan(&sc.ID, &sc.Target, &sc.Timestamp, &sc.OpenPortsJSON); err != nil {
+			return nil, err
+		}
+		scans = append(scans, sc)
+	}
+	return scans, rows.Err()
+}
+
 // GetAllSecurityBaselines returns all security baselines.
 func (s *Store) GetAllSecurityBaselines() ([]SecurityBaseline, error) {
 	rows, err := s.db.Query(

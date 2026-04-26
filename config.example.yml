@@ -50,14 +50,19 @@ agents:
 
 security:
   targets:
+    # alert_hysteresis: a candidate change must persist across this many
+    # consecutive scans (including current) before alerting. Default 2 — kills
+    # single-scan SYN-ACK drops. Set 1 to disable.
     - host: "84.18.245.85"
       schedule: "0 3 * * 0"
-      scan_concurrency: 200
-      timeout: "2s"
+      scan_concurrency: 50
+      timeout: "5s"
+      alert_hysteresis: 2
     - host: "145.241.217.231"
       schedule: "0 4 * * 0"
-      scan_concurrency: 500
-      timeout: "2s"
+      scan_concurrency: 200
+      timeout: "5s"
+      alert_hysteresis: 2
 
 alerting:
   default_failure_threshold: 3

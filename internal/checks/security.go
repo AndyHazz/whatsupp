@@ -77,6 +77,65 @@ func (s *SecurityScanner) Scan() ([]int, error) {
 	return openPorts, nil
 }
 
+// FilterByHysteresis suppresses transient scan flaps by requiring a port to
+// be consistently new/gone across the last `hysteresis` scans (including the
+// current one). recentScans is newest-first; recentScans[0] is the current
+// scan. Returns the subset of newPorts/gonePorts that should actually alert.
+//
+// Behaviour:
+//   - hysteresis <= 1: pass-through (no filtering).
+//   - len(recentScans) < hysteresis: insufficient history → suppress everything.
+//     This is the "first few scans of a new target" case — better silent than
+//     noisy.
+//   - For each candidate "gone" port: must be absent in ALL of the most recent
+//     `hysteresis` scans. (One scan that saw it back means: not really gone.)
+//   - For each candidate "new" port: must be present in ALL of the most recent
+//     `hysteresis` scans. (One scan that missed it means: not really stable.)
+func FilterByHysteresis(newPorts, gonePorts []int, recentScans [][]int, hysteresis int) (filteredNew, filteredGone []int) {
+	if hysteresis <= 1 {
+		return newPorts, gonePorts
+	}
+	if len(recentScans) < hysteresis {
+		return nil, nil
+	}
+	window := recentScans[:hysteresis]
+
+	for _, p := range newPorts {
+		stable := true
+		for _, scan := range window {
+			if !containsInt(scan, p) {
+				stable = false
+				break
+			}
+		}
+		if stable {
+			filteredNew = append(filteredNew, p)
+		}
+	}
+	for _, p := range gonePorts {
+		gone := true
+		for _, scan := range window {
+			if containsInt(scan, p) {
+				gone = false
+				break
+			}
+		}
+		if gone {
+			filteredGone = append(filteredGone, p)
+		}
+	}
+	return
+}
+
+func containsInt(xs []int, x int) bool {
+	for _, v := range xs {
+		if v == x {
+			return true
+		}
+	}
+	return false
+}
+
 func CompareBaseline(baseline, current []int) (newPorts, gonePorts []int) {
 	baseSet := make(map[int]bool, len(baseline))
 	for _, p := range baseline {
