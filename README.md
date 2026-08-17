@@ -180,6 +180,22 @@ docker compose -f docker-compose.agent.yml up -d
 ./whatsupp agent -config /etc/whatsupp/agent.yml
 ```
 
+### Disabling collectors
+
+Every collector runs by default. Turn one off by name in the agent's
+`agent.yml` — useful for the Docker collector on a host with no Docker:
+
+```yaml
+collectors:
+  docker: false
+```
+
+A collector that keeps failing is not left to retry forever: the agent logs
+the first failure, then backs off exponentially (from the collect interval up
+to 30 minutes) and logs again only when it recovers. Disabling it in config is
+still worth doing when you know it can never work on that host, since it skips
+the work and the connection attempts entirely.
+
 ### Hub configuration
 
 Add a matching agent entry in the hub's `config.yml`:

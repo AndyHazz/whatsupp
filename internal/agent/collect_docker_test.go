@@ -9,15 +9,16 @@ import (
 )
 
 func TestDockerCollector_NoDocker(t *testing.T) {
-	// Point to a non-existent Docker socket
+	// Point to a non-existent Docker socket. The collector reports the failure
+	// rather than swallowing it, so the agent can log it once and back off
+	// instead of retrying and logging every interval forever.
 	c := NewDockerCollector("tcp://127.0.0.1:1")
 	metrics, err := c.Collect(context.Background())
-	if err != nil {
-		t.Fatalf("expected nil error when Docker unavailable, got: %v", err)
+	if err == nil {
+		t.Fatal("expected an error when Docker is unavailable, got nil")
 	}
-	// Should return empty slice (not error) when Docker is unreachable
-	if metrics != nil && len(metrics) > 0 {
-		t.Logf("got %d metrics (Docker may be reachable)", len(metrics))
+	if len(metrics) > 0 {
+		t.Errorf("got %d metrics alongside the error, want none", len(metrics))
 	}
 }
 

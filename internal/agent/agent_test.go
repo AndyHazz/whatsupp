@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -161,4 +162,71 @@ func TestAgent_SkipsDockerOnError(t *testing.T) {
 
 	// Should not panic even if Docker is unreachable
 	a.Run(ctx)
+}
+
+func TestNew_OmitsDisabledCollectors(t *testing.T) {
+	cfg := &AgentConfig{
+		HubURL:     "https://hub.example.com",
+		Interval:   time.Second,
+		Collectors: map[string]bool{"docker": false},
+	}
+
+	a, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+
+	for _, c := range a.collectors {
+		if c.Name() == "docker" {
+			t.Error("docker collector present, want it omitted when disabled in config")
+		}
+	}
+	if len(a.collectors) == 0 {
+		t.Fatal("no collectors at all, want the other collectors kept")
+	}
+}
+
+func TestNew_KeepsAllCollectorsByDefault(t *testing.T) {
+	cfg := &AgentConfig{HubURL: "https://hub.example.com", Interval: time.Second}
+
+	a, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+
+	var found bool
+	for _, c := range a.collectors {
+		if c.Name() == "docker" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("docker collector missing with no collectors config, want it enabled by default")
+	}
+}
+
+// alwaysFailingCollector counts how many times it is actually attempted.
+type alwaysFailingCollector struct{ calls int }
+
+func (c *alwaysFailingCollector) Name() string { return "flaky" }
+func (c *alwaysFailingCollector) Collect(ctx context.Context) ([]Metric, error) {
+	c.calls++
+	return nil, errors.New("nope")
+}
+
+func TestCollect_StopsRetryingAFailingCollector(t *testing.T) {
+	failing := &alwaysFailingCollector{}
+	a := &Agent{
+		config:     &AgentConfig{Interval: time.Minute},
+		collectors: []Collector{failing},
+		backoff:    NewBackoff(time.Minute, 30*time.Minute),
+	}
+
+	for i := 0; i < 5; i++ {
+		a.collect(context.Background())
+	}
+
+	if failing.calls != 1 {
+		t.Errorf("collector attempted %d times across 5 cycles, want 1 - backoff should skip the rest", failing.calls)
+	}
 }

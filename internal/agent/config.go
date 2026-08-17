@@ -16,6 +16,16 @@ type AgentConfig struct {
 	Interval   time.Duration `yaml:"interval"`
 	HostFS     string        `yaml:"host_fs"`
 	DockerHost string        `yaml:"docker_host"`
+	// Collectors turns individual collectors off by name, e.g. the Docker
+	// collector on a host with no Docker. Any collector not listed is enabled.
+	Collectors map[string]bool `yaml:"collectors"`
+}
+
+// CollectorEnabled reports whether the named collector should run. Collectors
+// are enabled unless the config explicitly says otherwise.
+func (c *AgentConfig) CollectorEnabled(name string) bool {
+	enabled, ok := c.Collectors[name]
+	return !ok || enabled
 }
 
 // ParseAgentConfig reads and parses the agent YAML config file.

@@ -9,6 +9,11 @@ import (
 	"github.com/andyhazz/whatsupp/internal/version"
 )
 
+// maxCollectorBackoff caps how long a persistently failing collector is skipped
+// for. Long enough that a permanently broken collector costs almost nothing,
+// short enough that one which starts working again is picked up the same day.
+const maxCollectorBackoff = 30 * time.Minute
+
 // Agent collects system metrics and pushes them to the hub.
 type Agent struct {
 	config     *AgentConfig
@@ -16,6 +21,7 @@ type Agent struct {
 	push       *PushClient
 	buffer     *MetricBuffer
 	hostname   string
+	backoff    *Backoff
 }
 
 // New creates a new Agent from config.
@@ -23,8 +29,9 @@ func New(cfg *AgentConfig) (*Agent, error) {
 	// Setup host filesystem paths for containerized collection
 	SetupHostFS(cfg.HostFS)
 
-	// Create collectors
-	collectors := []Collector{
+	// Create collectors, omitting any the config disables
+	var collectors []Collector
+	for _, c := range []Collector{
 		NewCPUCollector(),
 		NewMemCollector(),
 		NewDiskCollector(),
@@ -32,6 +39,12 @@ func New(cfg *AgentConfig) (*Agent, error) {
 		NewTempCollector(),
 		NewDockerCollector(cfg.DockerHost),
 		NewBatteryCollector(),
+	} {
+		if cfg.CollectorEnabled(c.Name()) {
+			collectors = append(collectors, c)
+		} else {
+			log.Printf("agent: collector %s disabled by config", c.Name())
+		}
 	}
 
 	return &Agent{
@@ -40,6 +53,7 @@ func New(cfg *AgentConfig) (*Agent, error) {
 		push:       NewPushClient(cfg.HubURL, cfg.AgentKey),
 		buffer:     NewMetricBuffer(5*time.Minute, 10),
 		hostname:   cfg.Hostname,
+		backoff:    NewBackoff(cfg.Interval, maxCollectorBackoff),
 	}, nil
 }
 
@@ -94,7 +108,12 @@ func (a *Agent) collect(ctx context.Context) []Metric {
 	results := make(chan result, len(a.collectors))
 	var wg sync.WaitGroup
 
+	now := time.Now()
 	for _, c := range a.collectors {
+		// Skip collectors that are backing off after repeated failures
+		if !a.backoff.Allow(c.Name(), now) {
+			continue
+		}
 		wg.Add(1)
 		go func(c Collector) {
 			defer wg.Done()
@@ -111,8 +130,15 @@ func (a *Agent) collect(ctx context.Context) []Metric {
 	var all []Metric
 	for r := range results {
 		if r.err != nil {
-			log.Printf("agent: collector %s error: %v", r.name, r.err)
+			// Only the first failure of a run is logged; the rest would be
+			// identical, and the collector is now being retried less often.
+			if a.backoff.Failure(r.name, now) {
+				log.Printf("agent: collector %s failing, backing off: %v", r.name, r.err)
+			}
 			continue
+		}
+		if a.backoff.Success(r.name) {
+			log.Printf("agent: collector %s recovered", r.name)
 		}
 		all = append(all, r.metrics...)
 	}

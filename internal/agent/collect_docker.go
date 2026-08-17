@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"strings"
@@ -54,18 +55,19 @@ func (c *DockerCollector) getClient() (*client.Client, error) {
 }
 
 func (c *DockerCollector) Collect(ctx context.Context) ([]Metric, error) {
+	// Errors are returned rather than logged and discarded: the agent's run loop
+	// owns the policy for a failing collector (log once, then back off). A host
+	// with no Docker used to log here every interval, forever.
 	cli, err := c.getClient()
 	if err != nil {
-		log.Printf("docker collector: cannot create client: %v", err)
-		return nil, nil // non-fatal
+		return nil, fmt.Errorf("cannot create client: %w", err)
 	}
 
 	containers, err := cli.ContainerList(ctx, container.ListOptions{All: true})
 	if err != nil {
 		// Reset client on error so next call reconnects
 		c.cli = nil
-		log.Printf("docker collector: cannot list containers: %v", err)
-		return nil, nil // non-fatal
+		return nil, fmt.Errorf("cannot list containers: %w", err)
 	}
 
 	now := time.Now()

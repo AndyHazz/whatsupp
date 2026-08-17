@@ -115,3 +115,40 @@ func TestParseAgentConfig_Invalid(t *testing.T) {
 		t.Fatal("expected error for missing hub_url")
 	}
 }
+
+func TestParseAgentConfigCollectorToggles(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "agent.yml")
+
+	yaml := `hub_url: "https://monitor.example.com"
+collectors:
+  docker: false
+  battery: true
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := ParseAgentConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.CollectorEnabled("docker") {
+		t.Error("CollectorEnabled(docker) = true, want false - it is disabled in config")
+	}
+	if !cfg.CollectorEnabled("battery") {
+		t.Error("CollectorEnabled(battery) = false, want true")
+	}
+	if !cfg.CollectorEnabled("cpu") {
+		t.Error("CollectorEnabled(cpu) = false, want true - collectors not listed default to enabled")
+	}
+}
+
+func TestCollectorEnabledDefaultsToTrueWithNoCollectorsBlock(t *testing.T) {
+	cfg := &AgentConfig{}
+
+	if !cfg.CollectorEnabled("docker") {
+		t.Error("CollectorEnabled(docker) = false with no collectors block, want true")
+	}
+}
