@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -219,5 +220,40 @@ func TestNtfyClient_BasicAuth(t *testing.T) {
 	client.SendDown("Test", "err")
 	if authHeader == "" {
 		t.Error("Authorization header should be set when username/password configured")
+	}
+}
+
+// The baseline is updated as soon as a change is reported, so the alert must
+// say so: it is the reader's only notification of this change.
+func TestNtfyClient_PortAlertsStateBaselineWasUpdated(t *testing.T) {
+	srv, msgs, mu := captureServer(t)
+
+	client := NewNtfyClient(NtfyConfig{
+		URL:              srv.URL,
+		Topic:            "test",
+		ReminderInterval: time.Hour,
+	})
+
+	if err := client.SendNewPort("84.18.245.85", 25566); err != nil {
+		t.Fatalf("SendNewPort() error: %v", err)
+	}
+	if err := client.SendPortGone("84.18.245.85", 8080); err != nil {
+		t.Fatalf("SendPortGone() error: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	newPortMsg := (*msgs)[0].Message
+	if strings.Contains(newPortMsg, "not in baseline") {
+		t.Errorf("new port message still claims %q: %s", "not in baseline", newPortMsg)
+	}
+	if !strings.Contains(newPortMsg, "baseline updated") {
+		t.Errorf("new port message does not mention the baseline update: %s", newPortMsg)
+	}
+
+	gonePortMsg := (*msgs)[1].Message
+	if !strings.Contains(gonePortMsg, "baseline updated") {
+		t.Errorf("gone port message does not mention the baseline update: %s", gonePortMsg)
 	}
 }

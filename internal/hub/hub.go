@@ -684,6 +684,28 @@ func (h *Hub) executeSecurityScan(target config.SecurityTarget) {
 	}
 
 	now := time.Now().Unix()
+	newPorts, gonePorts := h.processScanResult(target, openPorts, now)
+
+	// Broadcast scan complete
+	if h.wsHub != nil {
+		h.wsHub.Broadcast(api.WSMessage{
+			Type: "security_scan_complete",
+			Data: map[string]interface{}{
+				"target":     target.Host,
+				"timestamp":  now,
+				"open_ports": openPorts,
+				"new_ports":  len(newPorts),
+				"gone_ports": len(gonePorts),
+			},
+		})
+	}
+
+}
+
+// processScanResult records a completed scan, compares it against the
+// baseline, alerts on any confirmed change and folds that change back into
+// the baseline. Returns the drift observed, for the caller to broadcast.
+func (h *Hub) processScanResult(target config.SecurityTarget, openPorts []int, now int64) ([]int, []int) {
 	portsJSON, _ := json.Marshal(openPorts)
 	if err := h.store.InsertSecurityScan(target.Host, now, string(portsJSON)); err != nil {
 		log.Printf("hub: store security scan error: %v", err)
@@ -693,7 +715,7 @@ func (h *Hub) executeSecurityScan(target config.SecurityTarget) {
 	baseline, err := h.store.GetSecurityBaseline(target.Host)
 	if err != nil {
 		log.Printf("hub: get security baseline error: %v", err)
-		return
+		return nil, nil
 	}
 
 	var newPorts, gonePorts []int
@@ -758,23 +780,10 @@ func (h *Hub) executeSecurityScan(target config.SecurityTarget) {
 			}
 		}
 	}
-
-	// Broadcast scan complete
-	if h.wsHub != nil {
-		h.wsHub.Broadcast(api.WSMessage{
-			Type: "security_scan_complete",
-			Data: map[string]interface{}{
-				"target":     target.Host,
-				"timestamp":  now,
-				"open_ports": openPorts,
-				"new_ports":  len(newPorts),
-				"gone_ports": len(gonePorts),
-			},
-		})
-	}
-
 	log.Printf("hub: security scan of %s complete: %d open ports, %d new (%d alerted), %d gone (%d alerted)",
 		target.Host, len(openPorts), len(newPorts), len(alertedNew), len(gonePorts), len(alertedGone))
+
+	return newPorts, gonePorts
 }
 
 // ScanSchedules returns the next run time and progress for all security targets.

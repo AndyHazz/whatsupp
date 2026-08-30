@@ -123,7 +123,7 @@ func (n *NtfyClient) SendNewPort(target string, port int) error {
 	msg := ntfyMessage{
 		Topic:    n.config.Topic,
 		Title:    fmt.Sprintf("Security: new port on %s", target),
-		Message:  fmt.Sprintf("Security: new port %d/tcp on %s (not in baseline)", port, target),
+		Message:  fmt.Sprintf("Security: new port %d/tcp on %s (baseline updated, alerts once)", port, target),
 		Priority: 5,
 		Tags:     []string{"warning"},
 	}
@@ -134,7 +134,7 @@ func (n *NtfyClient) SendPortGone(target string, port int) error {
 	msg := ntfyMessage{
 		Topic:    n.config.Topic,
 		Title:    fmt.Sprintf("Security: port gone on %s", target),
-		Message:  fmt.Sprintf("Security: port %d/tcp no longer open on %s", port, target),
+		Message:  fmt.Sprintf("Security: port %d/tcp no longer open on %s (baseline updated, alerts once)", port, target),
 		Priority: 4,
 		Tags:     []string{"warning"},
 	}
