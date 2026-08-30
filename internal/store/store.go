@@ -92,6 +92,14 @@ func Open(path string) (*Store, error) {
 	db.SetMaxIdleConns(1)
 	db.SetConnMaxLifetime(0)
 
+	// Without a size limit the WAL is reset but never truncated, so the file
+	// stays at its all-time high-water mark. Cap it so the space comes back
+	// after a checkpoint.
+	if _, err := db.Exec(`PRAGMA journal_size_limit = 67108864`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("set journal_size_limit: %w", err)
+	}
+
 	// Run schema migration
 	if _, err := db.Exec(schema); err != nil {
 		db.Close()

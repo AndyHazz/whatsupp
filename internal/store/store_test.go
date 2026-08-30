@@ -201,3 +201,52 @@ func TestDBFileCreated(t *testing.T) {
 		t.Error("DB file was not created")
 	}
 }
+
+// agent_metrics_hourly had no pruning at all, so it grew without bound while
+// its sibling check_results_hourly was correctly held to 90 days.
+func TestDeleteOldAgentMetricsHourly(t *testing.T) {
+	s := testDB(t)
+
+	now := time.Now()
+	stale := now.Add(-100 * 24 * time.Hour)
+	fresh := now.Add(-1 * time.Hour)
+
+	for _, h := range []time.Time{stale, fresh} {
+		if _, err := s.db.Exec(
+			`INSERT INTO agent_metrics_hourly (host, hour, metric_name, avg, min, max)
+			 VALUES (?, ?, ?, ?, ?, ?)`,
+			"plexypi", h.Unix(), "cpu_percent", 1.0, 1.0, 1.0); err != nil {
+			t.Fatalf("insert: %v", err)
+		}
+	}
+
+	n, err := s.DeleteOldAgentMetricsHourly(now.Add(-90 * 24 * time.Hour))
+	if err != nil {
+		t.Fatalf("DeleteOldAgentMetricsHourly() error: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("deleted = %d, want 1", n)
+	}
+
+	var remaining int
+	if err := s.db.QueryRow(`SELECT count(*) FROM agent_metrics_hourly`).Scan(&remaining); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if remaining != 1 {
+		t.Errorf("remaining rows = %d, want 1 (the fresh one)", remaining)
+	}
+}
+
+// Without a journal_size_limit the WAL never shrinks back after a checkpoint,
+// so it sits at its all-time high-water mark forever.
+func TestOpen_SetsJournalSizeLimit(t *testing.T) {
+	s := testDB(t)
+
+	var limit int64
+	if err := s.db.QueryRow(`PRAGMA journal_size_limit`).Scan(&limit); err != nil {
+		t.Fatalf("PRAGMA journal_size_limit: %v", err)
+	}
+	if limit <= 0 {
+		t.Errorf("journal_size_limit = %d, want > 0 so the WAL is truncated after checkpoint", limit)
+	}
+}

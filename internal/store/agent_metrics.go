@@ -319,6 +319,15 @@ func (s *Store) DeleteOldAgentMetrics5Min(cutoff time.Time) (int64, error) {
 	return res.RowsAffected()
 }
 
+// DeleteOldAgentMetricsHourly deletes hourly agent metrics older than cutoff.
+func (s *Store) DeleteOldAgentMetricsHourly(cutoff time.Time) (int64, error) {
+	res, err := s.db.Exec(`DELETE FROM agent_metrics_hourly WHERE hour < ?`, cutoff.Unix())
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 // GetOpenIncidentForMonitor returns the open incident for a given monitor name.
 func (s *Store) GetOpenIncidentForMonitor(monitor string) (*Incident, error) {
 	return s.GetOpenIncident(monitor)

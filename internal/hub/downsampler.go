@@ -194,4 +194,10 @@ func (d *Downsampler) runDailyAggregation() {
 	} else if n > 0 {
 		log.Printf("downsampler: deleted %d old hourly check results", n)
 	}
+
+	if n, err := d.store.DeleteOldAgentMetricsHourly(now.Add(-retainHourly)); err != nil {
+		log.Printf("downsampler: cleanup hourly agent metrics error: %v", err)
+	} else if n > 0 {
+		log.Printf("downsampler: deleted %d old hourly agent metrics", n)
+	}
 }
