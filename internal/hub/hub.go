@@ -744,6 +744,19 @@ func (h *Hub) executeSecurityScan(target config.SecurityTarget) {
 				log.Printf("hub: alert port gone error: %v", err)
 			}
 		}
+
+		// Fold the reported change into the baseline so it alerts once rather
+		// than on every scan from here on. Drift suppressed by hysteresis is
+		// left out, so it still alerts if it later proves stable.
+		if len(alertedNew) > 0 || len(alertedGone) > 0 {
+			updated := checks.ApplyBaselineDrift(baselinePorts, alertedNew, alertedGone)
+			updatedJSON, _ := json.Marshal(updated)
+			if err := h.store.UpsertSecurityBaseline(target.Host, string(updatedJSON), now); err != nil {
+				log.Printf("hub: update security baseline error: %v", err)
+			} else {
+				log.Printf("hub: security baseline for %s updated to %v", target.Host, updated)
+			}
+		}
 	}
 
 	// Broadcast scan complete

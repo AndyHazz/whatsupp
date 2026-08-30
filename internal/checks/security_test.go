@@ -187,3 +187,61 @@ func TestFilterByHysteresis_MixedPorts(t *testing.T) {
 		t.Errorf("mixed: filteredNew = %v, want [4444]", fn)
 	}
 }
+
+func TestApplyBaselineDrift_AbsorbsAlertedNewPort(t *testing.T) {
+	baseline := []int{80, 443}
+
+	got := ApplyBaselineDrift(baseline, []int{25566}, nil)
+
+	want := []int{80, 443, 25566}
+	if !equalInts(got, want) {
+		t.Errorf("ApplyBaselineDrift = %v, want %v", got, want)
+	}
+}
+
+func TestApplyBaselineDrift_DropsAlertedGonePort(t *testing.T) {
+	baseline := []int{80, 443, 8080}
+
+	got := ApplyBaselineDrift(baseline, nil, []int{8080})
+
+	want := []int{80, 443}
+	if !equalInts(got, want) {
+		t.Errorf("ApplyBaselineDrift = %v, want %v", got, want)
+	}
+}
+
+func TestApplyBaselineDrift_IgnoresSuppressedDrift(t *testing.T) {
+	// Hysteresis suppressed everything, so nothing was alerted and the
+	// baseline must not move — otherwise a transient flap would silently
+	// become the new normal and never alert.
+	baseline := []int{80, 443}
+
+	got := ApplyBaselineDrift(baseline, nil, nil)
+
+	if !equalInts(got, baseline) {
+		t.Errorf("ApplyBaselineDrift = %v, want %v", got, baseline)
+	}
+}
+
+func TestApplyBaselineDrift_ResultIsSorted(t *testing.T) {
+	baseline := []int{443, 80}
+
+	got := ApplyBaselineDrift(baseline, []int{25566, 8443}, []int{443})
+
+	want := []int{80, 8443, 25566}
+	if !equalInts(got, want) {
+		t.Errorf("ApplyBaselineDrift = %v, want %v", got, want)
+	}
+}
+
+func equalInts(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}

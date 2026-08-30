@@ -161,3 +161,29 @@ func CompareBaseline(baseline, current []int) (newPorts, gonePorts []int) {
 	sort.Ints(gonePorts)
 	return
 }
+
+// ApplyBaselineDrift folds an alerted change back into the baseline, so a
+// change is reported once rather than on every subsequent scan.
+//
+// Only ports we actually alerted on are folded in. Drift that hysteresis
+// suppressed is deliberately left out: absorbing it would let a transient
+// flap become the new normal without the change ever being reported.
+func ApplyBaselineDrift(baseline, alertedNew, alertedGone []int) []int {
+	set := make(map[int]bool, len(baseline)+len(alertedNew))
+	for _, p := range baseline {
+		set[p] = true
+	}
+	for _, p := range alertedNew {
+		set[p] = true
+	}
+	for _, p := range alertedGone {
+		delete(set, p)
+	}
+
+	updated := make([]int, 0, len(set))
+	for p := range set {
+		updated = append(updated, p)
+	}
+	sort.Ints(updated)
+	return updated
+}
